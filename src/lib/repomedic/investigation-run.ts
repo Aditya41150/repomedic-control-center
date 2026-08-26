@@ -99,7 +99,8 @@ export function useInvestigationRun() {
   }, []);
 
   const start = useCallback(async () => {
-    if (running.current) return; // prevents duplicate runs
+    // Guards: no duplicate runs, and no restart over a run in any other phase.
+    if (running.current || phaseRef.current !== "idle") return;
     running.current = true;
     decided.current = false;
 
@@ -356,6 +357,7 @@ export function useInvestigationRun() {
       });
     } catch {
       if (mounted.current && runToken.current === token) {
+        phaseRef.current = "error";
         setState((prev) => ({
           ...prev,
           phase: "error",
@@ -440,10 +442,11 @@ export function useInvestigationRun() {
   }, [makeCtx]);
 
   const reject = useCallback((note?: string) => {
-    if (decided.current) return;
+    if (decided.current || phaseRef.current !== "waiting_for_approval") return;
     decided.current = true;
     runToken.current += 1;
     running.current = false;
+    phaseRef.current = "rejected";
     setState((prev) => ({
       ...prev,
       phase: "rejected",
@@ -478,12 +481,25 @@ export function useInvestigationRun() {
   }, []);
 
   const reset = useCallback(() => {
+    // Works from every phase: cancels any in-flight run and restores the
+    // pristine demo state (incident, timeline, evidence, patch, PR, audit).
     runToken.current += 1;
     running.current = false;
     decided.current = false;
+    phaseRef.current = "idle";
     setState(clone(initialRunState));
   }, []);
 
 
-  return { state, start, approve, reject, reset };
+  /** Clears a failed/finished run and immediately starts a fresh one. */
+  const retry = useCallback(() => {
+    runToken.current += 1;
+    running.current = false;
+    decided.current = false;
+    phaseRef.current = "idle";
+    setState(clone(initialRunState));
+    setTimeout(() => void start(), 0);
+  }, [start]);
+
+  return { state, start, approve, reject, reset, retry };
 }
