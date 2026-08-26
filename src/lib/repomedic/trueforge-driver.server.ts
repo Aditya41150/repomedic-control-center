@@ -268,7 +268,9 @@ async function* streamTurn(
   });
   await ensureTrueForgeResponse(res, "turn");
 
-  const reader = res.body.getReader();
+  const body = res.body;
+  if (!body) throw new Error("TrueForge turn returned no response stream");
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   while (!signal.aborted) {
