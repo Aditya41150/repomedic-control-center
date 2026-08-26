@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Stethoscope } from "lucide-react";
@@ -16,7 +16,19 @@ import { SandboxResults } from "@/components/repomedic/SandboxResults";
 import { RootCausePanel } from "@/components/repomedic/RootCausePanel";
 import { PatchPanel } from "@/components/repomedic/PatchPanel";
 import { ApprovalGatePanel } from "@/components/repomedic/ApprovalGate";
+import { RunControlBar } from "@/components/repomedic/RunControlBar";
+import { SubagentGrid } from "@/components/repomedic/SubagentGrid";
+import { VerificationPanel } from "@/components/repomedic/VerificationPanel";
+import { RootCauseCard } from "@/components/repomedic/RootCauseCard";
+import { LiveApprovalPanel } from "@/components/repomedic/LiveApprovalPanel";
 import { getRepoMedicClient } from "@/lib/repomedic/client";
+import { useInvestigationRun } from "@/lib/repomedic/investigation-run";
+import {
+  CONVERGED_FINDING,
+  DEMO_INCIDENT_ID,
+  demoIncident,
+  requiredChecks,
+} from "@/lib/repomedic/demo-script";
 import {
   harnessStatusQuery,
   incidentsQuery,
@@ -43,26 +55,46 @@ export const Route = createFileRoute("/")({
 
 function ControlRoom() {
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string>(DEMO_INCIDENT_ID);
 
   const harness = useQuery(harnessStatusQuery());
   const incidents = useQuery(incidentsQuery());
+  const run = useInvestigationRun();
 
-  const activeId = selectedId ?? incidents.data?.[0]?.id ?? null;
+  const isDemo = selectedId === DEMO_INCIDENT_ID;
+
+  const liveIncident = useMemo(
+    () => ({
+      ...demoIncident,
+      status:
+        run.state.phase === "approved"
+          ? ("patch_open" as const)
+          : run.state.phase === "awaiting_approval"
+            ? ("awaiting_approval" as const)
+            : ("investigating" as const),
+    }),
+    [run.state.phase],
+  );
+
+  const queue = useMemo(
+    () => [liveIncident, ...(incidents.data ?? [])],
+    [liveIncident, incidents.data],
+  );
+
   const investigation = useQuery({
-    ...investigationQuery(activeId ?? ""),
-    enabled: Boolean(activeId),
+    ...investigationQuery(selectedId),
+    enabled: !isDemo,
   });
 
   const approve = useMutation({
     mutationFn: (input: { decision: "approve" | "reject"; note: string }) =>
       getRepoMedicClient().submitApproval({
-        incidentId: activeId!,
+        incidentId: selectedId,
         decision: input.decision,
         note: input.note || undefined,
       }),
     onSuccess: (gate) => {
-      queryClient.invalidateQueries({ queryKey: ["repomedic", "investigation", activeId] });
+      queryClient.invalidateQueries({ queryKey: ["repomedic", "investigation", selectedId] });
       toast[gate.state === "approved" ? "success" : "message"](
         gate.state === "approved"
           ? "Approved — pull request opened"
@@ -72,7 +104,9 @@ function ControlRoom() {
     onError: () => toast.error("The harness rejected the approval request."),
   });
 
+  const { state } = run;
   const data = investigation.data;
+  const showConverged = state.subagents.length > 0 && state.subagents.every((s) => s.state === "complete");
 
   return (
     <div className="min-h-screen bg-background">
@@ -109,82 +143,213 @@ function ControlRoom() {
         <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="lg:sticky lg:top-4 lg:self-start">
             <IncidentList
-              incidents={incidents.data ?? []}
+              incidents={queue}
               isLoading={incidents.isLoading}
-              selectedId={activeId}
-              onSelect={setSelectedId}
+              selectedId={selectedId}
+              onSelect={(id) => {
+                if (state.phase === "running" || state.phase === "creating_pr") {
+                  toast.message("An investigation is running — wait for the approval gate.");
+                  return;
+                }
+                setSelectedId(id);
+              }}
             />
           </aside>
 
           <section id="investigation" className="space-y-4">
-            {investigation.isLoading && (
-              <div className="space-y-4">
-                <Skeleton className="h-52 w-full rounded-lg" />
-                <Skeleton className="h-10 w-full max-w-xl rounded-lg" />
-                <Skeleton className="h-72 w-full rounded-lg" />
-              </div>
-            )}
-
-            {investigation.isError && (
-              <div className="panel flex flex-col items-center gap-3 px-6 py-14 text-center">
-                <AlertCircle className="h-6 w-6 text-critical" aria-hidden />
-                <p className="text-sm font-medium">Could not load this investigation.</p>
-                <p className="max-w-md text-sm text-muted-foreground">
-                  The TrueForge harness did not return an investigation record. Retry, or pick
-                  another incident from the queue.
-                </p>
-                <Button variant="outline" onClick={() => investigation.refetch()}>
-                  Retry
-                </Button>
-              </div>
-            )}
-
-            {!activeId && !incidents.isLoading && (
-              <div className="panel px-6 py-16 text-center text-sm text-muted-foreground">
-                Select an incident to open its investigation.
-              </div>
-            )}
-
-            {data && !investigation.isLoading && !investigation.isError && (
+            {isDemo ? (
               <>
-                <IncidentHeader incident={data.incident} />
+                <IncidentHeader incident={liveIncident} />
 
-                <ApprovalGatePanel
-                  gate={data.approval}
-                  isSubmitting={approve.isPending}
-                  error={approve.isError ? "Approval could not be submitted." : null}
-                  onDecide={(decision, note) => approve.mutate({ decision, note })}
+                <RunControlBar
+                  phase={state.phase}
+                  onStart={() => void run.start()}
+                  onReset={run.reset}
                 />
 
-                <Tabs defaultValue="timeline">
-                  <TabsList className="flex-wrap">
-                    <TabsTrigger value="timeline">Agent timeline</TabsTrigger>
-                    <TabsTrigger value="evidence">
-                      Evidence ({data.evidence.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="sandbox">
-                      Sandbox ({data.sandboxRuns.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="rootcause">Root cause</TabsTrigger>
-                    <TabsTrigger value="patch">Patch</TabsTrigger>
-                  </TabsList>
+                {state.error && (
+                  <div className="panel flex items-center gap-3 border-critical/40 px-5 py-4">
+                    <AlertCircle className="h-5 w-5 text-critical" aria-hidden />
+                    <p className="text-sm">{state.error}</p>
+                    <Button variant="outline" size="sm" className="ml-auto" onClick={run.reset}>
+                      Reset demo
+                    </Button>
+                  </div>
+                )}
 
-                  <TabsContent value="timeline" className="mt-4">
-                    <AgentTimeline steps={data.steps} isLoading={false} />
-                  </TabsContent>
-                  <TabsContent value="evidence" className="mt-4">
-                    <EvidencePanel evidence={data.evidence} />
-                  </TabsContent>
-                  <TabsContent value="sandbox" className="mt-4">
-                    <SandboxResults runs={data.sandboxRuns} />
-                  </TabsContent>
-                  <TabsContent value="rootcause" className="mt-4">
-                    <RootCausePanel hypothesis={data.hypothesis} />
-                  </TabsContent>
-                  <TabsContent value="patch" className="mt-4">
-                    <PatchPanel patch={data.patch} />
-                  </TabsContent>
-                </Tabs>
+                {state.phase === "idle" && (
+                  <div className="panel px-6 py-14 text-center">
+                    <p className="text-sm font-medium">Investigation ready.</p>
+                    <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+                      Start the run to watch RepoMedic inspect the repository, correlate telemetry,
+                      dispatch parallel subagents, reproduce the failure in a sandbox, generate and
+                      verify a patch — then stop for your approval.
+                    </p>
+                  </div>
+                )}
+
+                {state.hypothesis && (
+                  <RootCauseCard hypothesis={state.hypothesis} commit="81ac2" />
+                )}
+
+                {state.verification && <VerificationPanel report={state.verification} />}
+
+                {(state.phase === "awaiting_approval" ||
+                  state.phase === "creating_pr" ||
+                  state.phase === "approved" ||
+                  state.phase === "rejected") &&
+                  state.patch && (
+                    <LiveApprovalPanel
+                      phase={state.phase}
+                      checks={requiredChecks}
+                      patch={state.patch}
+                      verification={state.verification}
+                      pullRequest={state.pullRequest}
+                      onApprove={(note) => void run.approve(note)}
+                      onReject={run.reject}
+                      onReset={run.reset}
+                    />
+                  )}
+
+                {state.phase !== "idle" && (
+                  <Tabs defaultValue="timeline">
+                    <TabsList className="flex-wrap">
+                      <TabsTrigger value="timeline">Agent timeline</TabsTrigger>
+                      <TabsTrigger value="subagents">
+                        Subagents ({state.subagents.filter((s) => s.state === "complete").length}/
+                        {state.subagents.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="evidence">Evidence ({state.evidence.length})</TabsTrigger>
+                      <TabsTrigger value="sandbox">Sandbox ({state.sandboxRuns.length})</TabsTrigger>
+                      <TabsTrigger value="rootcause">Root cause</TabsTrigger>
+                      <TabsTrigger value="patch">Patch</TabsTrigger>
+                      <TabsTrigger value="audit">Audit log ({state.auditLog.length})</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="timeline" className="mt-4">
+                      <AgentTimeline steps={state.steps} isLoading={false} />
+                    </TabsContent>
+                    <TabsContent value="subagents" className="mt-4">
+                      <SubagentGrid
+                        subagents={state.subagents}
+                        converged={showConverged ? CONVERGED_FINDING : undefined}
+                      />
+                    </TabsContent>
+                    <TabsContent value="evidence" className="mt-4">
+                      <EvidencePanel evidence={state.evidence} />
+                    </TabsContent>
+                    <TabsContent value="sandbox" className="mt-4">
+                      <SandboxResults runs={state.sandboxRuns} />
+                    </TabsContent>
+                    <TabsContent value="rootcause" className="mt-4">
+                      <RootCausePanel
+                        hypothesis={
+                          state.hypothesis ?? {
+                            statement: "",
+                            confidence: 0,
+                            reasoning: [],
+                            ruledOut: [],
+                            blastRadius: "",
+                          }
+                        }
+                      />
+                    </TabsContent>
+                    <TabsContent value="patch" className="mt-4">
+                      {state.patch ? (
+                        <PatchPanel patch={state.patch} />
+                      ) : (
+                        <p className="panel px-4 py-10 text-center text-sm text-muted-foreground">
+                          No patch generated yet.
+                        </p>
+                      )}
+                    </TabsContent>
+                    <TabsContent value="audit" className="mt-4">
+                      <ol className="panel divide-y divide-border">
+                        {state.auditLog.map((a, i) => (
+                          <li
+                            key={`${a.at}-${i}`}
+                            className="flex flex-wrap items-center gap-3 px-4 py-2.5"
+                          >
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              {a.at.slice(11, 19)}Z
+                            </span>
+                            <span className="font-mono text-[11px] tracking-wide uppercase text-primary">
+                              {a.actor}
+                            </span>
+                            <span className="text-sm">{a.message}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </TabsContent>
+                  </Tabs>
+                )}
+              </>
+            ) : (
+              <>
+                {investigation.isLoading && (
+                  <div className="space-y-4">
+                    <Skeleton className="h-52 w-full rounded-lg" />
+                    <Skeleton className="h-10 w-full max-w-xl rounded-lg" />
+                    <Skeleton className="h-72 w-full rounded-lg" />
+                  </div>
+                )}
+
+                {investigation.isError && (
+                  <div className="panel flex flex-col items-center gap-3 px-6 py-14 text-center">
+                    <AlertCircle className="h-6 w-6 text-critical" aria-hidden />
+                    <p className="text-sm font-medium">Could not load this investigation.</p>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      The TrueForge harness did not return an investigation record. Retry, or pick
+                      another incident from the queue.
+                    </p>
+                    <Button variant="outline" onClick={() => investigation.refetch()}>
+                      Retry
+                    </Button>
+                  </div>
+                )}
+
+                {data && !investigation.isLoading && !investigation.isError && (
+                  <>
+                    <IncidentHeader incident={data.incident} />
+
+                    <ApprovalGatePanel
+                      gate={data.approval}
+                      isSubmitting={approve.isPending}
+                      error={approve.isError ? "Approval could not be submitted." : null}
+                      onDecide={(decision, note) => approve.mutate({ decision, note })}
+                    />
+
+                    <Tabs defaultValue="timeline">
+                      <TabsList className="flex-wrap">
+                        <TabsTrigger value="timeline">Agent timeline</TabsTrigger>
+                        <TabsTrigger value="evidence">
+                          Evidence ({data.evidence.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="sandbox">
+                          Sandbox ({data.sandboxRuns.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="rootcause">Root cause</TabsTrigger>
+                        <TabsTrigger value="patch">Patch</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="timeline" className="mt-4">
+                        <AgentTimeline steps={data.steps} isLoading={false} />
+                      </TabsContent>
+                      <TabsContent value="evidence" className="mt-4">
+                        <EvidencePanel evidence={data.evidence} />
+                      </TabsContent>
+                      <TabsContent value="sandbox" className="mt-4">
+                        <SandboxResults runs={data.sandboxRuns} />
+                      </TabsContent>
+                      <TabsContent value="rootcause" className="mt-4">
+                        <RootCausePanel hypothesis={data.hypothesis} />
+                      </TabsContent>
+                      <TabsContent value="patch" className="mt-4">
+                        <PatchPanel patch={data.patch} />
+                      </TabsContent>
+                    </Tabs>
+                  </>
+                )}
               </>
             )}
           </section>

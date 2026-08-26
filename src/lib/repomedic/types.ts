@@ -158,3 +158,59 @@ export interface RepoMedicClient {
   getInvestigation(incidentId: string): Promise<IncidentInvestigation>;
   submitApproval(decision: ApprovalDecision): Promise<ApprovalGate>;
 }
+
+/* ------------------------------------------------------------------ */
+/* Live investigation run (deterministic demo today, TrueForge later)  */
+/* ------------------------------------------------------------------ */
+
+export type RunPhase =
+  | "idle"
+  | "running"
+  | "awaiting_approval"
+  | "creating_pr"
+  | "approved"
+  | "rejected"
+  | "error";
+
+export interface SubagentTask {
+  id: string;
+  name: string;
+  scope: string;
+  state: "pending" | "running" | "complete" | "failed";
+  finding?: string | undefined;
+  confidence?: number | undefined;
+}
+
+export interface VerificationReport {
+  suites: Array<{ label: string; result: string; passed: boolean }>;
+  latencyBefore: string;
+  latencyAfter: string;
+}
+
+export interface PullRequestResult {
+  number: number;
+  title: string;
+  url: string;
+  checks: "passing" | "pending" | "failing";
+  status: string;
+}
+
+export interface AuditEntry {
+  at: string;
+  message: string;
+  actor: "agent" | "human";
+}
+
+export interface RunState {
+  phase: RunPhase;
+  steps: TimelineStep[];
+  evidence: EvidenceItem[];
+  subagents: SubagentTask[];
+  sandboxRuns: SandboxRun[];
+  hypothesis: Hypothesis | null;
+  patch: PatchSummary | null;
+  verification: VerificationReport | null;
+  pullRequest: PullRequestResult | null;
+  auditLog: AuditEntry[];
+  error: string | null;
+}
