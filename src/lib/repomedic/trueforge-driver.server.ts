@@ -565,13 +565,13 @@ const findPullRequest = (
             ? Number.parseInt(url.match(/\/pull\/(\d+)/i)?.[1] ?? "", 10)
             : undefined;
     if (url && /\/pull\/\d+/i.test(url) && number && Number.isFinite(number)) {
+      const title = str(record["title"]);
+      const status = str(record["state"]) ?? str(record["status"]);
       return {
         url,
         number,
-        ...(str(record["title"]) ? { title: str(record["title"]) } : {}),
-        ...(str(record["state"]) ?? str(record["status"])
-          ? { status: str(record["state"]) ?? str(record["status"]) }
-          : {}),
+        ...(title ? { title } : {}),
+        ...(status ? { status } : {}),
       };
     }
     for (const nested of nestedCandidates) {
