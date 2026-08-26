@@ -282,25 +282,29 @@ async function* streamTurn(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  while (!signal.aborted) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf("\n\n")) !== -1) {
-      const frame = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
-      for (const line of frame.split("\n")) {
-        if (!line.startsWith("data:")) continue;
-        const payload = line.slice(5).trim();
-        if (!payload) continue;
-        try {
-          yield JSON.parse(payload) as Record<string, unknown>;
-        } catch {
-          // Ignore malformed frames rather than killing the run.
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        for (const line of frame.split("\n")) {
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          try {
+            yield JSON.parse(payload) as Record<string, unknown>;
+          } catch {
+            // Ignore malformed frames rather than killing the run.
+          }
         }
       }
     }
+  } finally {
+    await reader.cancel().catch(() => undefined);
   }
 }
 
@@ -560,6 +564,7 @@ const findPullRequest = (
       record["data"],
       record["result"],
       record["content"],
+      record["text"],
       record["pull_request"],
     ];
     const url = str(record["html_url"]) ?? str(record["url"]);
