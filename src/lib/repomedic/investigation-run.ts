@@ -67,6 +67,7 @@ export function useInvestigationRun(initialMode: RunMode = defaultRunMode()) {
     const ac = new AbortController();
     controller.current = ac;
     const emit = (event: RunEvent) => {
+      console.log("[dbg] emit", event.type, mounted.current, ac.signal.aborted);
       if (!mounted.current || ac.signal.aborted) return;
       setState((prev) => {
         const next = applyRunEvent(prev, event);
@@ -85,6 +86,7 @@ export function useInvestigationRun(initialMode: RunMode = defaultRunMode()) {
 
   const start = useCallback(async () => {
     // Guards: no duplicate runs, and no restart over a run in any other phase.
+    console.log("[dbg] start", running.current, phaseRef.current, mode);
     if (running.current || phaseRef.current !== "idle") return;
     running.current = true;
     decided.current = false;
