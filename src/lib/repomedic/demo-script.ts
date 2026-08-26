@@ -34,7 +34,8 @@ export const demoIncident: Incident = {
   service: "checkout-service",
   environment: "production / us-east-1",
   repository: "acme/checkout-service",
-  detectedAt: new Date(Date.now() - 11 * 60_000).toISOString(),
+  /** Fixed so server and client render identically (no hydration mismatch). */
+  detectedAt: "2026-03-11T14:29:00.000Z",
   openedBy: "Datadog Monitor · checkout-latency",
   errorRate: 43,
   affectedUsers: 1842,
