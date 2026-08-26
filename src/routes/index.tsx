@@ -12,6 +12,8 @@ import { HarnessCapabilities } from "@/components/repomedic/HarnessCapabilities"
 import { IncidentList } from "@/components/repomedic/IncidentList";
 import { IncidentHeader } from "@/components/repomedic/IncidentHeader";
 import { AgentTimeline } from "@/components/repomedic/AgentTimeline";
+import { AuditTrail } from "@/components/repomedic/AuditTrail";
+
 import { EvidencePanel } from "@/components/repomedic/EvidencePanel";
 import { SandboxResults } from "@/components/repomedic/SandboxResults";
 import { RootCausePanel } from "@/components/repomedic/RootCausePanel";
