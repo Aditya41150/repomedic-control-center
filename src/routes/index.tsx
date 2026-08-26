@@ -262,34 +262,9 @@ function ControlRoom() {
                       )}
                     </TabsContent>
                     <TabsContent value="audit" className="mt-4">
-                      <ol className="panel divide-y divide-border">
-                        {state.auditLog.map((a, i) => (
-                          <li
-                            key={`${a.at}-${i}`}
-                            className={`flex flex-wrap items-center gap-3 px-4 py-2.5 ${
-                              a.actor === "human"
-                                ? "border-l-2 border-l-caution bg-caution/8"
-                                : ""
-                            }`}
-                          >
-                            <span className="font-mono text-[11px] text-muted-foreground">
-                              {a.at.slice(11, 19)}Z
-                            </span>
-                            <span
-                              className={`rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide uppercase ${
-                                a.actor === "human"
-                                  ? "border-caution/45 bg-caution/12 text-caution"
-                                  : "border-primary/35 bg-primary/10 text-primary"
-                              }`}
-                            >
-                              {a.actor}
-                            </span>
-                            <span className="text-sm">{a.message}</span>
-                          </li>
-                        ))}
-
-                      </ol>
+                      <AuditTrail entries={state.auditLog} />
                     </TabsContent>
+
                   </Tabs>
                 )}
               </>
