@@ -129,10 +129,10 @@ export interface ApprovalGate {
   state: "pending" | "approved" | "rejected";
   requestedAt: string;
   requiredChecks: Array<{ label: string; passed: boolean }>;
-  decidedBy?: string;
-  decidedAt?: string;
-  note?: string;
-  pullRequestUrl?: string;
+  decidedBy?: string | undefined;
+  decidedAt?: string | undefined;
+  note?: string | undefined;
+  pullRequestUrl?: string | undefined;
 }
 
 export interface IncidentInvestigation {
