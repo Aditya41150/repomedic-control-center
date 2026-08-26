@@ -41,9 +41,7 @@ export function HarnessBar({
           <StatusPill tone="critical" dot>
             unreachable
           </StatusPill>
-          <span className="text-sm text-muted-foreground">
-            Harness status could not be read.
-          </span>
+          <span className="text-sm text-muted-foreground">Harness status could not be read.</span>
           <Button size="sm" variant="outline" onClick={onRetry}>
             Retry
           </Button>
@@ -79,7 +77,13 @@ export function HarnessBar({
             {status.connectors.map((c) => (
               <li key={c.name}>
                 <StatusPill
-                  tone={c.status === "connected" ? "signal" : c.status === "error" ? "critical" : "muted"}
+                  tone={
+                    c.status === "connected"
+                      ? "signal"
+                      : c.status === "error"
+                        ? "critical"
+                        : "muted"
+                  }
                   dot
                 >
                   {c.name}

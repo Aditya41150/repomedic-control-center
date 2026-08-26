@@ -150,7 +150,10 @@ export function EvidenceBoard() {
       >
         <ul className="grid gap-3 lg:grid-cols-3">
           {consensusFindings.map((c) => (
-            <li key={c.agent} className="rounded-md border border-border bg-background/50 px-3 py-3">
+            <li
+              key={c.agent}
+              className="rounded-md border border-border bg-background/50 px-3 py-3"
+            >
               <div className="flex items-center gap-2">
                 <Check className="h-4 w-4 shrink-0 text-signal" aria-hidden />
                 <span className="text-sm font-semibold">{c.agent}</span>
@@ -184,10 +187,7 @@ export function EvidenceBoard() {
                 <div className="font-mono text-sm">{node.value}</div>
               </div>
               {i < correlationChain.length - 1 && (
-                <span
-                  aria-hidden
-                  className="px-2 py-1 font-mono text-muted-foreground md:py-0"
-                >
+                <span aria-hidden className="px-2 py-1 font-mono text-muted-foreground md:py-0">
                   <span className="md:hidden">↓</span>
                   <span className="hidden md:inline">→</span>
                 </span>
@@ -235,7 +235,11 @@ export function EvidenceBoard() {
       </Section>
 
       {/* RUNTIME EVIDENCE */}
-      <Section id="runtime-evidence" title="Runtime evidence" icon={<Gauge className="h-4 w-4" aria-hidden />}>
+      <Section
+        id="runtime-evidence"
+        title="Runtime evidence"
+        icon={<Gauge className="h-4 w-4" aria-hidden />}
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-md border border-critical/35 bg-critical/5 px-4 py-3">
             <div className="label-caps text-critical">Before</div>

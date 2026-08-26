@@ -36,10 +36,7 @@ export function PatchPanel({ patch }: { patch: PatchSummary }) {
 
       <ul className="mt-4 space-y-2">
         {patch.filesChanged.map((f) => (
-          <li
-            key={f.path}
-            className="rounded-md border border-border bg-background/50 px-3 py-2"
-          >
+          <li key={f.path} className="rounded-md border border-border bg-background/50 px-3 py-2">
             <div className="flex flex-wrap items-center gap-2">
               <FileDiff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
               <code className="font-mono text-xs">{f.path}</code>

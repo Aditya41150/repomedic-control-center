@@ -24,11 +24,7 @@ export interface HarnessStatus {
 
 export type Severity = "sev1" | "sev2" | "sev3";
 
-export type IncidentStatus =
-  | "investigating"
-  | "awaiting_approval"
-  | "patch_open"
-  | "resolved";
+export type IncidentStatus = "investigating" | "awaiting_approval" | "patch_open" | "resolved";
 
 export interface Incident {
   id: string;
@@ -60,12 +56,7 @@ export type StepState = "pending" | "running" | "complete" | "blocked" | "failed
 
 /** Coarse category shown as a chip on every timeline step. */
 export type StepCategory =
-  | "mcp_tool"
-  | "sandbox"
-  | "subagent"
-  | "analysis"
-  | "verification"
-  | "human_approval";
+  "mcp_tool" | "sandbox" | "subagent" | "analysis" | "verification" | "human_approval";
 
 export interface ToolCall {
   id: string;
@@ -288,4 +279,3 @@ export interface RunState {
   approvalRequest: ApprovalRequest | null;
   error: string | null;
 }
-

@@ -40,7 +40,9 @@ export function trueForgeConfig(): TrueForgeConfig {
 }
 
 /** First real integration slice: read-only repository forensics, no writes. */
-export const FIRST_SLICE_PROMPT = (repository: string) => `You are RepoMedic, an autonomous production-incident investigator.
+export const FIRST_SLICE_PROMPT = (
+  repository: string,
+) => `You are RepoMedic, an autonomous production-incident investigator.
 
 Incident: Investigate the current RepoMedic repository (${repository}) and identify the
 deterministic investigation workflow that should be replaced by a real TrueForge-backed
@@ -288,7 +290,10 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
       const name = str(data["tool_name"]) ?? str(data["name"]) ?? "tool";
       const callId = str(data["tool_call_id"]) ?? `tc_${Date.now()}`;
       const stepId = `tf_${name}`;
-      out.push({ type: "step.upsert", step: toolStep(stepId, name, `Call ${name}`, `TrueForge invoked ${name}.`) });
+      out.push({
+        type: "step.upsert",
+        step: toolStep(stepId, name, `Call ${name}`, `TrueForge invoked ${name}.`),
+      });
       out.push({
         type: "step.tool_call",
         id: stepId,

@@ -86,9 +86,7 @@ export function createMockClient(): RepoMedicClient {
         decidedAt: new Date().toISOString(),
         note,
         pullRequestUrl:
-          decision === "approve"
-            ? "https://github.com/acme/checkout-api/pull/4471"
-            : undefined,
+          decision === "approve" ? "https://github.com/acme/checkout-api/pull/4471" : undefined,
       };
       approvals.set(incidentId, next);
       return next;

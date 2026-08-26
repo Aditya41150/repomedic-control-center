@@ -24,7 +24,7 @@ import {
 import type { RunDriver, RunDriverContext } from "./run-driver";
 import type { ApprovalRequest, TimelineStep } from "./types";
 
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 export const demoApprovalRequest: ApprovalRequest = {
   title: "Create GitHub Pull Request",
@@ -56,7 +56,6 @@ export function createDemoDriver(): RunDriver {
       const alive = () => !signal.aborted;
       const step = (id: string, patch: Partial<TimelineStep>) =>
         emit({ type: "step.patch", id, patch });
-
 
       emit({
         type: "run.started",
@@ -354,7 +353,11 @@ export function createDemoDriver(): RunDriver {
 
     async approve({ emit, signal }: RunDriverContext, note?: string) {
       emit({ type: "phase", phase: "creating_pr" });
-      emit({ type: "step.patch", id: "step_approval", patch: { state: "complete", durationMs: 0 } });
+      emit({
+        type: "step.patch",
+        id: "step_approval",
+        patch: { state: "complete", durationMs: 0 },
+      });
       emit({
         type: "audit",
         entry: {

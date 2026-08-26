@@ -75,15 +75,12 @@ export function AuditTrail({ entries }: { entries: AuditEntry[] }) {
     <section className="panel" aria-labelledby="audit-trail-heading">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
-          <h2
-            id="audit-trail-heading"
-            className="font-mono text-xs tracking-[0.14em] uppercase"
-          >
+          <h2 id="audit-trail-heading" className="font-mono text-xs tracking-[0.14em] uppercase">
             Audit trail
           </h2>
           <p className="mt-1 max-w-xl text-xs text-muted-foreground">
-            Every autonomous action and human authorization is recorded so the investigation
-            can be reviewed after execution. Demo implementation — not an immutable log.
+            Every autonomous action and human authorization is recorded so the investigation can be
+            reviewed after execution. Demo implementation — not an immutable log.
           </p>
         </div>
         <Button

@@ -37,7 +37,6 @@ function sseStream(source: (signal: AbortSignal) => AsyncGenerator<RunEvent>, si
           type: "error",
           message: `Could not reach the TrueForge harness (${detail}). Check that the harness is running and TRUEFORGE_BASE_URL / TRUEFORGE_API_TOKEN are configured.`,
         });
-
       } finally {
         controller.close();
       }
@@ -54,9 +53,8 @@ export const Route = createFileRoute("/api/repomedic/run")({
           return Response.json({ error: "Invalid request body" }, { status: 400 });
         }
         const body = parsed.data;
-        const { runInvestigation, submitDecision } = await import(
-          "@/lib/repomedic/trueforge-driver.server"
-        );
+        const { runInvestigation, submitDecision } =
+          await import("@/lib/repomedic/trueforge-driver.server");
 
         const stream =
           body.action === "start"

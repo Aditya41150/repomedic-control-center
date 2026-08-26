@@ -3,13 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { StatusPill } from "./StatusPill";
 import type { Hypothesis } from "@/lib/repomedic/types";
 
-export function RootCauseCard({
-  hypothesis,
-  commit,
-}: {
-  hypothesis: Hypothesis;
-  commit: string;
-}) {
+export function RootCauseCard({ hypothesis, commit }: { hypothesis: Hypothesis; commit: string }) {
   const confidence = Math.round(hypothesis.confidence * 100);
   return (
     <section

@@ -17,7 +17,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "./StatusPill";
 import { approvalRequest } from "@/lib/repomedic/evidence-board";
-import type { PatchSummary, PullRequestResult, RunPhase, VerificationReport } from "@/lib/repomedic/types";
+import type {
+  PatchSummary,
+  PullRequestResult,
+  RunPhase,
+  VerificationReport,
+} from "@/lib/repomedic/types";
 
 function Fact({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (

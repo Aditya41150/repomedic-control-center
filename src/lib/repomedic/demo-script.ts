@@ -157,8 +157,7 @@ export const stepBlueprints: TimelineStep[] = [
     id: "step_approval",
     kind: "approval",
     title: "Human approval gate",
-    detail:
-      "RepoMedic stops here. No pull request is created without an explicit human decision.",
+    detail: "RepoMedic stops here. No pull request is created without an explicit human decision.",
     state: "pending",
     agent: "orchestrator",
     startedAt: now(),
@@ -214,7 +213,8 @@ export const stepToolCalls: Record<string, TimelineStep["toolCalls"]> = {
       args: { repo: "acme/checkout-service", since: "6h" },
       durationMs: 520,
       status: "ok",
-      result: "3 commits in window · 81ac2 'perf(checkout): enrich order lines' is the only in-window deploy",
+      result:
+        "3 commits in window · 81ac2 'perf(checkout): enrich order lines' is the only in-window deploy",
     },
     {
       id: "tc_files",
@@ -223,7 +223,8 @@ export const stepToolCalls: Record<string, TimelineStep["toolCalls"]> = {
       args: { commit: "81ac2" },
       durationMs: 410,
       status: "ok",
-      result: "2 files changed · checkout/order_service.py (+38 / -11), checkout/serializers.py (+4 / -0)",
+      result:
+        "2 files changed · checkout/order_service.py (+38 / -11), checkout/serializers.py (+4 / -0)",
     },
     {
       id: "tc_prs",
@@ -344,8 +345,7 @@ export const evidenceForStep: Record<string, EvidenceItem[]> = {
       source: "github · 81ac2",
       label: "Changed files in the suspicious commit",
       capturedAt: now(),
-      excerpt:
-        "checkout/order_service.py   +38 / -11\ncheckout/serializers.py      +4 /  -0",
+      excerpt: "checkout/order_service.py   +38 / -11\ncheckout/serializers.py      +4 /  -0",
       confidence: 0.9,
     },
   ],
@@ -420,8 +420,7 @@ export const subagentFindings: Record<string, { finding: string; confidence: num
   },
 };
 
-export const CONVERGED_FINDING =
-  "N+1 database query introduced in checkout/order_service.py";
+export const CONVERGED_FINDING = "N+1 database query introduced in checkout/order_service.py";
 
 export const reproductionRun: SandboxRun = {
   id: "sbx_repro",

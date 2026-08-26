@@ -21,7 +21,7 @@ import type { RunState } from "./types";
  * presentation components consume the same `RunState` either way.
  */
 
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 export const initialRunState: RunState = {
   phase: "idle",

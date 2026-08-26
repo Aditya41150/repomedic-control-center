@@ -154,7 +154,8 @@ const steps: TimelineStep[] = [
         args: { service: "checkout-api", level: "error", limit: 5000 },
         durationMs: 4_320,
         status: "ok",
-        result: "Cluster A (94%): TypeError: Cannot read properties of undefined (reading 'ceiling')",
+        result:
+          "Cluster A (94%): TypeError: Cannot read properties of undefined (reading 'ceiling')",
       },
     ],
   },
@@ -273,7 +274,8 @@ const steps: TimelineStep[] = [
     toolLabel: "GitHub MCP",
     action: "Pull request creation",
     title: "Pull request creation",
-    detail: "Opens a PR against main with the verified patch, evidence bundle and sandbox logs attached.",
+    detail:
+      "Opens a PR against main with the verified patch, evidence bundle and sandbox logs attached.",
     state: "pending",
     agent: "orchestrator",
     startedAt: t(0),
@@ -341,8 +343,9 @@ const sandboxRuns: SandboxRun[] = [
     status: "failed",
     durationMs: 18_400,
     phase: "reproduction",
-    output: "FAIL pricing/stacked-coupons.test.ts > stacks two percent coupons\n  TypeError: Cannot read properties of undefined (reading 'ceiling')",
-    },
+    output:
+      "FAIL pricing/stacked-coupons.test.ts > stacks two percent coupons\n  TypeError: Cannot read properties of undefined (reading 'ceiling')",
+  },
   {
     id: "sbx_2",
     name: "Reproduce failing cart #B (tier=null)",
@@ -350,7 +353,8 @@ const sandboxRuns: SandboxRun[] = [
     status: "failed",
     durationMs: 12_900,
     phase: "reproduction",
-    output: "FAIL pricing/tierless.test.ts > redeems with unset tier\n  same stack as production signature A",
+    output:
+      "FAIL pricing/tierless.test.ts > redeems with unset tier\n  same stack as production signature A",
   },
   {
     id: "sbx_3",
@@ -368,7 +372,8 @@ const sandboxRuns: SandboxRun[] = [
     status: "passed",
     durationMs: 31_500,
     phase: "verification",
-    output: "PASS 96 tests, including new regression test 'falls back to DEFAULT_CEILING when tier is unset'",
+    output:
+      "PASS 96 tests, including new regression test 'falls back to DEFAULT_CEILING when tier is unset'",
   },
   {
     id: "sbx_5",

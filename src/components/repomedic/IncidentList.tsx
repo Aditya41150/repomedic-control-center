@@ -27,8 +27,7 @@ export function IncidentList({
     <nav aria-label="Active incidents" className="flex flex-col gap-2">
       <h2 className="label-caps px-1">Incident queue</h2>
 
-      {isLoading &&
-        [0, 1, 2].map((i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+      {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
 
       {!isLoading && incidents.length === 0 && (
         <p className="panel px-3 py-6 text-center text-sm text-muted-foreground">
