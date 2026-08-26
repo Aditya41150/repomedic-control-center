@@ -83,7 +83,7 @@ export function sanitizeError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
   const token = process.env["TRUEFORGE_API_TOKEN"];
   const cleaned = token ? raw.split(token).join("***") : raw;
-  return cleaned.replace(/Bearer\s+[\w.\-]+/gi, "Bearer ***").slice(0, 400);
+  return cleaned.replace(/Bearer\s+[\w.-]+/gi, "Bearer ***").slice(0, 400);
 }
 
 export interface TrueForgeHealth {
@@ -142,7 +142,6 @@ export async function checkTrueForgeHealth(timeoutMs = 4000): Promise<TrueForgeH
     clearTimeout(timer);
   }
 }
-
 
 /** First real integration slice: read-only repository forensics, no writes. */
 export const FIRST_SLICE_PROMPT = (

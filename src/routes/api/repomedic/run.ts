@@ -32,9 +32,8 @@ function sseStream(source: (signal: AbortSignal) => AsyncGenerator<RunEvent>, si
       try {
         for await (const event of source(signal)) send(event);
       } catch (error) {
-        const { sanitizeError, TrueForgeConfigError } = await import(
-          "@/lib/repomedic/trueforge-driver.server"
-        );
+        const { sanitizeError, TrueForgeConfigError } =
+          await import("@/lib/repomedic/trueforge-driver.server");
         const detail = sanitizeError(error);
         send({
           type: "error",
