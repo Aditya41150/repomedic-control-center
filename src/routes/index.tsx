@@ -32,11 +32,7 @@ import {
   demoIncident,
   requiredChecks,
 } from "@/lib/repomedic/demo-script";
-import {
-  harnessStatusQuery,
-  incidentsQuery,
-  investigationQuery,
-} from "@/lib/repomedic/queries";
+import { harnessStatusQuery, incidentsQuery, investigationQuery } from "@/lib/repomedic/queries";
 
 const title = "RepoMedic — Autonomous incident investigation control room";
 const description =
@@ -109,7 +105,8 @@ function ControlRoom() {
 
   const { state } = run;
   const data = investigation.data;
-  const showConverged = state.subagents.length > 0 && state.subagents.every((s) => s.state === "complete");
+  const showConverged =
+    state.subagents.length > 0 && state.subagents.every((s) => s.state === "complete");
 
   return (
     <div className="min-h-screen bg-background">
@@ -138,7 +135,6 @@ function ControlRoom() {
             Demo mode
           </span>
         </div>
-
       </header>
 
       <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-4 md:px-6 md:py-6">
@@ -175,6 +171,8 @@ function ControlRoom() {
                 <RunControlBar
                   phase={state.phase}
                   onStart={() => void run.start()}
+                  mode={run.mode}
+                  onModeChange={run.setMode}
                   onReset={run.reset}
                 />
 
@@ -207,7 +205,6 @@ function ControlRoom() {
                   </section>
                 )}
 
-
                 {state.phase === "idle" && (
                   <div className="panel px-6 py-14 text-center">
                     <p className="text-sm font-medium">Investigation ready.</p>
@@ -238,7 +235,6 @@ function ControlRoom() {
 
                 {state.hypothesis && <EvidenceBoard />}
 
-
                 {state.phase !== "idle" && (
                   <Tabs defaultValue="timeline">
                     <TabsList className="flex-wrap">
@@ -248,7 +244,9 @@ function ControlRoom() {
                         {state.subagents.length})
                       </TabsTrigger>
                       <TabsTrigger value="evidence">Evidence ({state.evidence.length})</TabsTrigger>
-                      <TabsTrigger value="sandbox">Sandbox ({state.sandboxRuns.length})</TabsTrigger>
+                      <TabsTrigger value="sandbox">
+                        Sandbox ({state.sandboxRuns.length})
+                      </TabsTrigger>
                       <TabsTrigger value="rootcause">Root cause</TabsTrigger>
                       <TabsTrigger value="patch">Patch</TabsTrigger>
                       <TabsTrigger value="audit">Audit log ({state.auditLog.length})</TabsTrigger>
@@ -294,7 +292,6 @@ function ControlRoom() {
                     <TabsContent value="audit" className="mt-4">
                       <AuditTrail entries={state.auditLog} />
                     </TabsContent>
-
                   </Tabs>
                 )}
               </>
