@@ -568,8 +568,10 @@ const findPullRequest = (
       return {
         url,
         number,
-        title: str(record["title"]),
-        status: str(record["state"]) ?? str(record["status"]),
+        ...(str(record["title"]) ? { title: str(record["title"]) } : {}),
+        ...(str(record["state"]) ?? str(record["status"])
+          ? { status: str(record["state"]) ?? str(record["status"]) }
+          : {}),
       };
     }
     for (const nested of nestedCandidates) {
@@ -915,9 +917,17 @@ export async function* runInvestigation(signal: AbortSignal): AsyncGenerator<Run
   yield { type: "phase", phase: "investigating" };
 
   const input: TurnInput[] = [
-    { type: "user.message", content: FIRST_SLICE_PROMPT(cfg.repository) },
+    {
+      type: "user.message",
+      content: FIRST_SLICE_PROMPT(
+        cfg.repository,
+        cfg.maxToolCalls,
+        cfg.maxSearchCodeCalls,
+      ),
+    },
   ];
   const state = createInvestigationBudgetState();
+  const adapterState = createTrueForgeEventAdapterState();
   try {
     for await (const raw of streamTurn(cfg, sessionId, input, signal)) {
       if (isRateLimitEvent(raw)) {
@@ -948,8 +958,10 @@ export async function* runInvestigation(signal: AbortSignal): AsyncGenerator<Run
         return;
       }
 
-      for (const event of mapTrueForgeEvent(raw)) yield event;
+      for (const event of mapTrueForgeEvent(raw, adapterState)) yield event;
+      if (adapterState.sawApprovalRequired) return;
     }
+    for (const event of partialStreamTerminationEvents(adapterState)) yield event;
   } catch (error) {
     if (error instanceof TrueForgeRateLimitError) {
       yield rateLimitAudit(state, cfg);
@@ -994,6 +1006,7 @@ export async function* submitDecision(
   signal: AbortSignal,
 ): AsyncGenerator<RunEvent> {
   const cfg = trueForgeConfig();
+  const adapterState = createTrueForgeEventAdapterState();
   yield {
     type: "audit",
     entry: {
@@ -1028,8 +1041,10 @@ export async function* submitDecision(
         yield { type: "error", message: "Investigation paused: model rate limit reached." };
         return;
       }
-      for (const event of mapTrueForgeEvent(raw)) yield event;
+      for (const event of mapTrueForgeEvent(raw, adapterState)) yield event;
+      if (adapterState.sawApprovalRequired) return;
     }
+    for (const event of partialStreamTerminationEvents(adapterState)) yield event;
   } catch (error) {
     if (error instanceof TrueForgeRateLimitError) {
       yield rateLimitAudit(undefined, cfg);
