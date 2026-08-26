@@ -131,7 +131,14 @@ function ControlRoom() {
               autonomous production-incident investigation
             </p>
           </div>
+          <span
+            className="ml-auto rounded border border-caution/45 bg-caution/12 px-2 py-1 font-mono text-[10px] tracking-[0.16em] text-caution uppercase"
+            title="Deterministic simulated data — no external GitHub, monitoring, sandbox or TrueForge execution is connected yet."
+          >
+            Demo mode
+          </span>
         </div>
+
       </header>
 
       <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-4 md:px-6 md:py-6">
