@@ -46,11 +46,7 @@ export function IncidentHeader({ incident }: { incident: Incident }) {
         </p>
 
         <div className="mt-5 grid grid-cols-2 gap-4 border-t border-border pt-4 md:grid-cols-4">
-          <Stat
-            icon={Clock}
-            label="Detected"
-            value={detected.toISOString().slice(11, 16) + "Z"}
-          />
+          <Stat icon={Clock} label="Detected" value={detected.toISOString().slice(11, 16) + "Z"} />
           <Stat icon={AlertTriangle} label="Error rate" value={`${incident.errorRate}%`} />
           <Stat
             icon={Users}

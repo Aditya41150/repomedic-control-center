@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "./StatusPill";
 import { demoFacts } from "@/lib/repomedic/demo-script";
 import { isBusyPhase, type RunPhase } from "@/lib/repomedic/types";
+import type { RunMode } from "@/lib/repomedic/run-driver";
 
 const phaseLabel: Record<RunPhase, string> = {
   idle: "investigation ready",
@@ -38,10 +39,14 @@ export function RunControlBar({
   phase,
   onStart,
   onReset,
+  mode,
+  onModeChange,
 }: {
   phase: RunPhase;
   onStart: () => void;
   onReset: () => void;
+  mode: RunMode;
+  onModeChange: (mode: RunMode) => void;
 }) {
   const busy = isBusyPhase(phase);
   const started = phase !== "idle";
@@ -69,6 +74,28 @@ export function RunControlBar({
         </ul>
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
+          <div
+            role="group"
+            aria-label="Execution mode"
+            className="flex items-center gap-1 rounded-md border border-border bg-background/60 p-1"
+          >
+            {(["demo", "trueforge"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onModeChange(m)}
+                disabled={busy}
+                aria-pressed={mode === m}
+                className={`rounded px-2 py-1 font-mono text-[11px] uppercase tracking-wide transition-colors disabled:opacity-50 ${
+                  mode === m
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {m === "demo" ? "demo" : "trueforge"}
+              </button>
+            ))}
+          </div>
           <StatusPill tone={phaseTone[phase]} dot pulse={busy}>
             {phaseLabel[phase]}
           </StatusPill>

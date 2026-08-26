@@ -92,7 +92,8 @@ function StepCard({ step, index }: { step: TimelineStep; index: number }) {
       <div
         className={cn(
           "panel relative overflow-hidden px-4 py-3 transition-shadow",
-          step.state === "running" && "border-primary/45 shadow-[0_0_0_1px_var(--color-primary)]/10",
+          step.state === "running" &&
+            "border-primary/45 shadow-[0_0_0_1px_var(--color-primary)]/10",
           step.state === "blocked" && "border-caution/50",
           step.state === "pending" && "opacity-70",
         )}
@@ -154,7 +155,9 @@ function StepCard({ step, index }: { step: TimelineStep; index: number }) {
               aria-hidden
             />
             {open ? "hide details" : "details"}
-            {hasCalls ? ` · ${step.toolCalls.length} tool call${step.toolCalls.length > 1 ? "s" : ""}` : ""}
+            {hasCalls
+              ? ` · ${step.toolCalls.length} tool call${step.toolCalls.length > 1 ? "s" : ""}`
+              : ""}
           </button>
           <span className="font-mono text-[11px] text-muted-foreground">agent: {step.agent}</span>
         </div>
@@ -209,13 +212,7 @@ function StepCard({ step, index }: { step: TimelineStep; index: number }) {
   );
 }
 
-export function AgentTimeline({
-  steps,
-  isLoading,
-}: {
-  steps: TimelineStep[];
-  isLoading: boolean;
-}) {
+export function AgentTimeline({ steps, isLoading }: { steps: TimelineStep[]; isLoading: boolean }) {
   if (isLoading) {
     return (
       <div className="space-y-3">

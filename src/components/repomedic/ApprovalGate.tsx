@@ -22,17 +22,20 @@ export function ApprovalGatePanel({
   const allChecksPassed = gate.requiredChecks.every((c) => c.passed);
 
   return (
-    <section
-      aria-labelledby="approval-heading"
-      className="panel overflow-hidden border-caution/45"
-    >
+    <section aria-labelledby="approval-heading" className="panel overflow-hidden border-caution/45">
       <div className="flex flex-wrap items-center gap-3 border-b border-caution/30 bg-caution/10 px-5 py-3">
         <ShieldAlert className="h-4 w-4 text-caution" aria-hidden />
         <h2 id="approval-heading" className="text-sm font-semibold">
           Human approval gate
         </h2>
         <StatusPill
-          tone={gate.state === "approved" ? "signal" : gate.state === "rejected" ? "critical" : "caution"}
+          tone={
+            gate.state === "approved"
+              ? "signal"
+              : gate.state === "rejected"
+                ? "critical"
+                : "caution"
+          }
           dot
           pulse={blocking}
         >

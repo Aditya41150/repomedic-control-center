@@ -65,20 +65,59 @@ The approval endpoint is the only mutation. The backend must treat it as the
 sole authorisation to push a branch and open a pull request — RepoMedic's UI
 will never trigger PR creation implicitly.
 
+## Real TrueForge harness (vertical slice)
+
+Investigation execution sits behind `RunDriver` (`src/lib/repomedic/run-driver.ts`):
+
+- `createDemoDriver()` (`demo-driver.ts`) — the deterministic offline demo, unchanged.
+- `createTrueForgeDriver()` (`trueforge-client-driver.ts`) — streams real harness events
+  from our own server route.
+
+Both emit the same `RunEvent` union, folded into `RunState` by `applyRunEvent()`, so no
+presentation component knows which engine is running. Switch engines with the
+DEMO / TRUEFORGE toggle in the run control bar, or default it with
+`VITE_REPOMEDIC_MODE=trueforge`.
+
+### Server boundary
+
+`POST /api/repomedic/run` (`src/routes/api/repomedic/run.ts`) returns a Server-Sent
+Events stream of `RunEvent`s:
+
+- `{ "action": "start" }` — create a TrueForge session and stream the investigation turn.
+- `{ "action": "approve" | "deny", sessionId, threadId, toolCallId, reason? }` — answer a
+  pending TrueForge tool-approval checkpoint.
+
+`src/lib/repomedic/trueforge-driver.server.ts` is the only module that talks to the
+harness, using its documented HTTP API (verified against `@truefoundry/trueforge` 0.1.4):
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/api/v1/sessions` | Create a session with an inline `AgentSpec`. |
+| POST | `/api/v1/sessions/{id}/turns` | Create + execute a turn; SSE when `stream: true`. |
+| GET | `/api/v1/sessions/{id}/turns/{turnId}/subscribe` | Resume a running turn. |
+| POST | `/api/v1/sessions/{id}/cancel` | Cancel the running turn. |
+
+Human approval is **not** a bespoke endpoint: TrueForge emits `tool.approval_required`,
+and the decision is sent as a new turn whose input is a `user.tool_approval` item
+(`{ thread_id, tool_call_id, approval: { status: "allow" | "deny", reason? } }`).
+RepoMedic never performs GitHub writes itself — every mutation stays a TrueForge tool
+call behind that checkpoint. The first slice is read-only repository forensics.
+
 ### Environment variables
 
 Secrets must never be exposed to the browser. `VITE_*` values are public by
-definition; the TrueForge API key and GitHub token belong on the server only,
-behind a proxy route that forwards to the harness.
+definition; TrueForge, GitHub and Daytona credentials stay server-side (GitHub/Daytona
+credentials belong to the harness's own connector configuration, not to this app).
 
 | Variable | Scope | Purpose |
 | --- | --- | --- |
-| `VITE_REPOMEDIC_API_URL` | client (public) | Base URL of the RepoMedic proxy/API. Unset = mock mode. |
-| `TRUEFORGE_API_URL` | server | TrueForge harness base URL. |
-| `TRUEFORGE_API_KEY` | server (secret) | Harness authentication. |
-| `TRUEFORGE_WORKSPACE_ID` | server | Workspace/tenant the harness runs under. |
-| `GITHUB_APP_TOKEN` | server (secret) | Repo reads and pull-request creation via the GitHub MCP connector. |
-| `OBSERVABILITY_API_KEY` | server (secret) | Metrics/log provider used for telemetry correlation. |
-| `SANDBOX_RUNNER_URL` | server | Ephemeral sandbox service for reproduction and verification runs. |
+| `VITE_REPOMEDIC_MODE` | client (public) | `demo` (default) or `trueforge` — initial execution mode. |
+| `VITE_REPOMEDIC_API_URL` | client (public) | Base URL of the RepoMedic proxy/API. Unset = mock data. |
+| `TRUEFORGE_BASE_URL` | server | TrueForge harness base URL (default `http://localhost:3000`). |
+| `TRUEFORGE_API_TOKEN` | server (secret) | Bearer ID token, only when the harness runs with OIDC enabled. |
+| `TRUEFORGE_MODEL` | server | Model name passed in the inline `AgentSpec` (e.g. a Gemini model). |
+| `TRUEFORGE_GITHUB_MCP_SERVER` | server | Name of the GitHub MCP server configured inside TrueForge. |
+| `TRUEFORGE_REPOSITORY` | server | Repository the first read-only slice investigates. |
 
 Do not commit values for any of the above; configure them as project secrets.
+

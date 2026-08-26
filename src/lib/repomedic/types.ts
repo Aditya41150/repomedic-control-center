@@ -24,11 +24,7 @@ export interface HarnessStatus {
 
 export type Severity = "sev1" | "sev2" | "sev3";
 
-export type IncidentStatus =
-  | "investigating"
-  | "awaiting_approval"
-  | "patch_open"
-  | "resolved";
+export type IncidentStatus = "investigating" | "awaiting_approval" | "patch_open" | "resolved";
 
 export interface Incident {
   id: string;
@@ -60,12 +56,7 @@ export type StepState = "pending" | "running" | "complete" | "blocked" | "failed
 
 /** Coarse category shown as a chip on every timeline step. */
 export type StepCategory =
-  | "mcp_tool"
-  | "sandbox"
-  | "subagent"
-  | "analysis"
-  | "verification"
-  | "human_approval";
+  "mcp_tool" | "sandbox" | "subagent" | "analysis" | "verification" | "human_approval";
 
 export interface ToolCall {
   id: string;
@@ -255,6 +246,24 @@ export interface AuditEntry {
   details?: Record<string, string>;
 }
 
+/**
+ * The pending external action the human must authorise.
+ *
+ * In demo mode this is scripted. In TrueForge mode it is built from the real
+ * `tool.approval_required` harness event, and `threadId`/`toolCallId` are what the
+ * allow/deny decision is sent back with — the mutation itself stays inside TrueForge.
+ */
+export interface ApprovalRequest {
+  title: string;
+  summary: string;
+  target: string;
+  risk: string;
+  reversibility: string;
+  toolName?: string | undefined;
+  threadId?: string | undefined;
+  toolCallId?: string | undefined;
+  args?: Record<string, unknown> | undefined;
+}
 
 export interface RunState {
   phase: RunPhase;
@@ -267,5 +276,6 @@ export interface RunState {
   verification: VerificationReport | null;
   pullRequest: PullRequestResult | null;
   auditLog: AuditEntry[];
+  approvalRequest: ApprovalRequest | null;
   error: string | null;
 }
