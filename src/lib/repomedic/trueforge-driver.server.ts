@@ -186,8 +186,11 @@ Execution budget (hard limits enforced by the caller):
 - At most ${maxToolCalls} total tool calls.
 - At most ${maxSearchCodeCalls} unique search_code calls.
 - Never repeat an equivalent search_code query.
-- Prefer repository tree, commit, and changed-file inspection. Once a relevant path is
-  located, read that file directly instead of searching the whole repository again.
+- Follow this order strictly: inspect the repository tree and recent commits first; use
+  those results to select a small set of relevant paths; read only those files directly;
+  then produce a focused diagnosis.
+- Do not fetch broad directory contents after relevant paths are known. Do not repeatedly
+  retrieve large files or repository-wide content.
 - Stop exploring early and summarize the evidence already collected when sufficient.
 
 Steps:
@@ -230,7 +233,13 @@ export async function createSession(cfg: TrueForgeConfig): Promise<string> {
             {
               name: cfg.githubMcpServer,
               // Anything mutating stays behind TrueForge's own approval checkpoint.
-              require_approval_for_tools: ["@write", "@destructive"],
+              require_approval_for_tools: [
+                "@write",
+                "@destructive",
+                "create_branch",
+                "create_or_update_file",
+                "create_pull_request",
+              ],
             },
           ],
         },
@@ -302,6 +311,25 @@ async function* streamTurn(
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+
+interface ProposedTool {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export interface TrueForgeEventAdapterState {
+  proposedTools: Map<string, ProposedTool>;
+  sawTerminalEvent: boolean;
+  sawApprovalRequired: boolean;
+  sawPullRequestResult: boolean;
+}
+
+export const createTrueForgeEventAdapterState = (): TrueForgeEventAdapterState => ({
+  proposedTools: new Map<string, ProposedTool>(),
+  sawTerminalEvent: false,
+  sawApprovalRequired: false,
+  sawPullRequestResult: false,
+});
 
 type BudgetStopReason = "duplicate_search" | "search_budget" | "tool_budget";
 
@@ -484,11 +512,114 @@ function toolStep(id: string, label: string, action: string, detail: string): Ti
   };
 }
 
+const toolArguments = (call: Record<string, unknown>): Record<string, unknown> => {
+  const parsed = parseToolArguments(obj(call["function"])["arguments"]);
+  return obj(parsed);
+};
+
+const rememberProposedTools = (
+  data: Record<string, unknown>,
+  state: TrueForgeEventAdapterState,
+) => {
+  const calls = Array.isArray(data["tool_calls"]) ? (data["tool_calls"] as unknown[]) : [];
+  for (const candidate of calls) {
+    const call = obj(candidate);
+    const id = str(call["id"]);
+    if (!id) continue;
+    state.proposedTools.set(id, { name: toolName(call), args: toolArguments(call) });
+  }
+};
+
+const stringifyResult = (value: unknown): string =>
+  typeof value === "string" ? value : JSON.stringify(value ?? {});
+
+const findPullRequest = (
+  value: unknown,
+): { number: number; url: string; title: string; status: string } | null => {
+  const visit = (candidate: unknown): { number?: number; url?: string; title?: string; status?: string } => {
+    if (typeof candidate === "string") {
+      try {
+        return visit(JSON.parse(candidate) as unknown);
+      } catch {
+        const url = candidate.match(/https?:\/\/[^\s"']+\/pull\/(\d+)/i);
+        return url ? { url: url[0], number: Number(url[1]) } : {};
+      }
+    }
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) {
+        const found = visit(item);
+        if (found.url && found.number) return found;
+      }
+      return {};
+    }
+    const record = obj(candidate);
+    const nestedCandidates = [record["data"], record["result"], record["content"], record["pull_request"]];
+    const url = str(record["html_url"]) ?? str(record["url"]);
+    const rawNumber = record["number"] ?? record["pull_number"];
+    const number =
+      typeof rawNumber === "number"
+        ? rawNumber
+        : typeof rawNumber === "string"
+          ? Number.parseInt(rawNumber, 10)
+          : url?.match(/\/pull\/(\d+)/i)?.[1]
+            ? Number.parseInt(url.match(/\/pull\/(\d+)/i)?.[1] ?? "", 10)
+            : undefined;
+    if (url && /\/pull\/\d+/i.test(url) && number && Number.isFinite(number)) {
+      return {
+        url,
+        number,
+        title: str(record["title"]),
+        status: str(record["state"]) ?? str(record["status"]),
+      };
+    }
+    for (const nested of nestedCandidates) {
+      const found = visit(nested);
+      if (found.url && found.number) return found;
+    }
+    return {};
+  };
+
+  const found = visit(value);
+  return found.url && found.number
+    ? {
+        number: found.number,
+        url: found.url,
+        title: found.title ?? "TrueForge production fix",
+        status: found.status ?? "Ready for review",
+      }
+    : null;
+};
+
+export function partialStreamTerminationEvents(
+  state: TrueForgeEventAdapterState,
+): RunEvent[] {
+  if (state.sawTerminalEvent || state.sawApprovalRequired) return [];
+  return [
+    {
+      type: "audit",
+      entry: {
+        actor: "agent",
+        action: "TrueForge stream ended",
+        result: "The stream ended before a terminal event; partial investigation evidence was preserved",
+        status: "failed",
+        details: { stop_reason: "stream_ended" },
+      },
+    },
+    {
+      type: "error",
+      message: "Investigation stream ended before completion. Partial evidence is preserved.",
+    },
+  ];
+}
+
 /**
  * Folds one raw TrueForge event into zero or more RepoMedic RunEvents.
  * Unknown event types are surfaced as audit rows rather than dropped.
  */
-export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
+export function mapTrueForgeEvent(
+  raw: Record<string, unknown>,
+  state = createTrueForgeEventAdapterState(),
+): RunEvent[] {
   const type = str(raw["type"]) ?? "unknown";
   const data = obj(raw["data"] ?? raw);
   const out: RunEvent[] = [];
@@ -583,7 +714,8 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
     }
 
     case "model.message": {
-      const content = str(obj(data["message"])["content"]) ?? str(data["content"]);
+      rememberProposedTools(data, state);
+      const content = str(data["content"]);
       if (content) {
         out.push({
           type: "audit",
@@ -598,10 +730,19 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
       break;
     }
 
+    case "model.message.delta":
+      // Documented token/tool-call fragments are intentionally consumed silently. The
+      // complete model.message is the authoritative event for audits and budget accounting.
+      break;
+
     case "tool.response": {
-      const name = str(data["tool_name"]) ?? str(data["name"]) ?? "tool";
       const callId = str(data["tool_call_id"]) ?? `tc_${Date.now()}`;
+      const proposed = state.proposedTools.get(callId);
+      const name = proposed?.name ?? str(data["tool_name"]) ?? str(data["name"]) ?? "tool";
       const stepId = `tf_${name}`;
+      const resultValue = data["result"] ?? data["content"] ?? {};
+      const result = stringifyResult(resultValue);
+      const failed = data["is_error"] === true;
       out.push({
         type: "step.upsert",
         step: toolStep(stepId, name, `Call ${name}`, `TrueForge invoked ${name}.`),
@@ -613,10 +754,15 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
           id: callId,
           provider: "trueforge",
           tool: name,
-          args: {},
+          args: Object.fromEntries(
+            Object.entries(proposed?.args ?? {}).map(([key, value]) => [
+              key,
+              typeof value === "object" ? JSON.stringify(value) : String(value),
+            ]),
+          ),
           durationMs: 0,
-          status: data["is_error"] === true ? "error" : "ok",
-          result: JSON.stringify(data["result"] ?? data["content"] ?? {}).slice(0, 600),
+          status: failed ? "error" : "ok",
+          result: result.slice(0, 600),
         },
       });
       out.push({ type: "step.patch", id: stepId, patch: { state: "complete" } });
@@ -625,15 +771,45 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
         entry: {
           actor: "tool",
           action: `${name} completed`,
-          result: JSON.stringify(data["result"] ?? data["content"] ?? {}).slice(0, 200),
-          status: data["is_error"] === true ? "failed" : "completed",
+          result: result.slice(0, 200),
+          status: failed ? "failed" : "completed",
           details: { tool: name, tool_call_id: callId },
         },
       });
+      if (!failed && isCreatePullRequest(name)) {
+        const pullRequest = findPullRequest(resultValue);
+        if (pullRequest) {
+          state.sawPullRequestResult = true;
+          out.push({
+            type: "pull_request",
+            pullRequest: {
+              number: pullRequest.number,
+              title: pullRequest.title,
+              url: pullRequest.url,
+              checks: "pending",
+              status: pullRequest.status,
+            },
+          });
+          out.push({
+            type: "audit",
+            entry: {
+              actor: "tool",
+              action: "Pull request created",
+              result: `PR #${pullRequest.number} · ${pullRequest.title}`,
+              details: {
+                tool: name,
+                pull_request: `#${pullRequest.number}`,
+                url: pullRequest.url,
+              },
+            },
+          });
+        }
+      }
       break;
     }
 
     case "tool.approval_required": {
+      state.sawApprovalRequired = true;
       const threadId = str(data["thread_id"]) ?? "";
       const calls = Array.isArray(data["tool_calls"]) ? (data["tool_calls"] as unknown[]) : [];
       const first = obj(calls[0]);
@@ -641,11 +817,13 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
         type: "approval.required",
         request: {
           title: "TrueForge tool approval required",
-          summary: str(first["name"]) ?? "The agent requested a gated tool action",
+          summary:
+            state.proposedTools.get(str(first["id"]) ?? "")?.name ??
+            "The agent requested a gated tool action",
           target: "TrueForge harness",
           risk: "Medium",
           reversibility: "High",
-          toolName: str(first["name"]),
+          toolName: state.proposedTools.get(str(first["id"]) ?? "")?.name,
           threadId,
           toolCallId: str(first["id"]),
         },
@@ -667,6 +845,7 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
     }
 
     case "turn.done":
+      state.sawTerminalEvent = true;
       out.push({ type: "phase", phase: "completed" });
       out.push({
         type: "audit",
@@ -693,6 +872,9 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
 
   return out;
 }
+
+const isCreatePullRequest = (name: string): boolean =>
+  name.toLowerCase().replace(/[.-]/g, "_").endsWith("create_pull_request");
 
 /* ------------------------------------------------------------------ */
 /* Public server API                                                   */
