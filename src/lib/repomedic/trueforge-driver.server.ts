@@ -424,11 +424,11 @@ function budgetAudit(
       status: stopReason ? "failed" : "started",
       details: {
         tool: name,
-        tool_call_count: state.toolCalls,
-        tool_call_budget: budget.maxToolCalls,
-        search_code_count: state.searchCodeCalls,
-        search_code_budget: budget.maxSearchCodeCalls,
-        deduplicated,
+        tool_call_count: String(state.toolCalls),
+        tool_call_budget: String(budget.maxToolCalls),
+        search_code_count: String(state.searchCodeCalls),
+        search_code_budget: String(budget.maxSearchCodeCalls),
+        deduplicated: String(deduplicated),
         ...(stopReason ? { stop_reason: stopReason } : {}),
       },
     },
@@ -724,8 +724,8 @@ export async function* runInvestigation(signal: AbortSignal): AsyncGenerator<Run
         session_id: sessionId,
         model: cfg.model,
         mode: "read-only",
-        tool_call_budget: cfg.maxToolCalls,
-        search_code_budget: cfg.maxSearchCodeCalls,
+        tool_call_budget: String(cfg.maxToolCalls),
+        search_code_budget: String(cfg.maxSearchCodeCalls),
       },
     },
   };
@@ -755,7 +755,10 @@ export async function* runInvestigation(signal: AbortSignal): AsyncGenerator<Run
             action: "TrueForge turn cancelled",
             result: stopMessage(inspection.stopReason),
             status: "failed",
-            details: { stop_reason: inspection.stopReason, harness_cancelled: cancelled },
+            details: {
+              stop_reason: inspection.stopReason,
+              harness_cancelled: String(cancelled),
+            },
           },
         };
         yield { type: "error", message: stopMessage(inspection.stopReason) };
@@ -790,10 +793,10 @@ function rateLimitAudit(
       status: "failed",
       details: {
         stop_reason: "rate_limit",
-        tool_call_count: state.toolCalls,
-        tool_call_budget: budget.maxToolCalls,
-        search_code_count: state.searchCodeCalls,
-        search_code_budget: budget.maxSearchCodeCalls,
+        tool_call_count: String(state.toolCalls),
+        tool_call_budget: String(budget.maxToolCalls),
+        search_code_count: String(state.searchCodeCalls),
+        search_code_budget: String(budget.maxSearchCodeCalls),
       },
     },
   };
