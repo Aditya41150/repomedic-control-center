@@ -19,8 +19,7 @@ import { PatchPanel } from "@/components/repomedic/PatchPanel";
 import { ApprovalGatePanel } from "@/components/repomedic/ApprovalGate";
 import { RunControlBar } from "@/components/repomedic/RunControlBar";
 import { SubagentGrid } from "@/components/repomedic/SubagentGrid";
-import { VerificationPanel } from "@/components/repomedic/VerificationPanel";
-import { RootCauseCard } from "@/components/repomedic/RootCauseCard";
+import { EvidenceBoard } from "@/components/repomedic/EvidenceBoard";
 import { LiveApprovalPanel } from "@/components/repomedic/LiveApprovalPanel";
 import { getRepoMedicClient } from "@/lib/repomedic/client";
 import { useInvestigationRun } from "@/lib/repomedic/investigation-run";
@@ -190,11 +189,8 @@ function ControlRoom() {
                   </div>
                 )}
 
-                {state.hypothesis && (
-                  <RootCauseCard hypothesis={state.hypothesis} commit="81ac2" />
-                )}
+                {state.hypothesis && <EvidenceBoard />}
 
-                {state.verification && <VerificationPanel report={state.verification} />}
 
                 {(state.phase === "awaiting_approval" ||
                   state.phase === "creating_pr" ||
