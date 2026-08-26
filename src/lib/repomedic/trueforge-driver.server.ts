@@ -26,7 +26,13 @@ export interface TrueForgeConfig {
   model: string;
   githubMcpServer: string;
   repository: string;
+  maxToolCalls: number;
+  maxSearchCodeCalls: number;
 }
+
+const DEFAULT_MAX_TOOL_CALLS = 12;
+const DEFAULT_MAX_SEARCH_CODE_CALLS = 3;
+const MAX_CONFIGURED_BUDGET = 100;
 
 /** Thrown when the server environment is not configured for the real harness. */
 export class TrueForgeConfigError extends Error {
@@ -44,6 +50,15 @@ export class TrueForgeConfigError extends Error {
 const read = (name: string): string | undefined => {
   const value = process.env[name];
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+};
+
+const readBudget = (name: string, fallback: number): number => {
+  const raw = read(name);
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(parsed, MAX_CONFIGURED_BUDGET)
+    : fallback;
 };
 
 /**
@@ -75,7 +90,19 @@ export function trueForgeConfig(): TrueForgeConfig {
     model: model!,
     githubMcpServer: githubMcpServer!,
     repository: repository!,
+    maxToolCalls: readBudget("TRUEFORGE_MAX_TOOL_CALLS", DEFAULT_MAX_TOOL_CALLS),
+    maxSearchCodeCalls: readBudget(
+      "TRUEFORGE_MAX_SEARCH_CODE_CALLS",
+      DEFAULT_MAX_SEARCH_CODE_CALLS,
+    ),
   };
+}
+
+export class TrueForgeRateLimitError extends Error {
+  constructor() {
+    super("Investigation paused: model rate limit reached.");
+    this.name = "TrueForgeRateLimitError";
+  }
 }
 
 /** Strips anything secret-shaped out of an error before it reaches the browser. */
@@ -146,6 +173,8 @@ export async function checkTrueForgeHealth(timeoutMs = 4000): Promise<TrueForgeH
 /** First real integration slice: read-only repository forensics, no writes. */
 export const FIRST_SLICE_PROMPT = (
   repository: string,
+  maxToolCalls = DEFAULT_MAX_TOOL_CALLS,
+  maxSearchCodeCalls = DEFAULT_MAX_SEARCH_CODE_CALLS,
 ) => `You are RepoMedic, an autonomous production-incident investigator.
 
 Incident: Investigate the current RepoMedic repository (${repository}) and identify the
@@ -154,6 +183,14 @@ investigation.
 
 This run is READ-ONLY. Do not create branches, commits, pull requests, or any other
 write operation. Use the GitHub MCP tools only to read repository contents.
+
+Execution budget (hard limits enforced by the caller):
+- At most ${maxToolCalls} total tool calls.
+- At most ${maxSearchCodeCalls} unique search_code calls.
+- Never repeat an equivalent search_code query.
+- Prefer repository tree, commit, and changed-file inspection. Once a relevant path is
+  located, read that file directly instead of searching the whole repository again.
+- Stop exploring early and summarize the evidence already collected when sufficient.
 
 Steps:
 1. Inspect the repository structure and recent commits.
@@ -179,7 +216,11 @@ export async function createSession(cfg: TrueForgeConfig): Promise<string> {
       agent: {
         spec: {
           model: { name: cfg.model },
-          instructions: FIRST_SLICE_PROMPT(cfg.repository),
+          instructions: FIRST_SLICE_PROMPT(
+            cfg.repository,
+            cfg.maxToolCalls,
+            cfg.maxSearchCodeCalls,
+          ),
           mcp_servers: [
             {
               name: cfg.githubMcpServer,
@@ -192,6 +233,7 @@ export async function createSession(cfg: TrueForgeConfig): Promise<string> {
     }),
   });
   if (!res.ok) {
+    if (res.status === 429) throw new TrueForgeRateLimitError();
     throw new Error(`TrueForge session creation failed (${res.status}): ${await res.text()}`);
   }
   const body = (await res.json()) as { data?: { id?: string }; id?: string };
@@ -223,6 +265,7 @@ async function* streamTurn(
     signal,
   });
   if (!res.ok || !res.body) {
+    if (res.status === 429) throw new TrueForgeRateLimitError();
     throw new Error(`TrueForge turn failed (${res.status}): ${await res.text()}`);
   }
 
@@ -258,6 +301,170 @@ async function* streamTurn(
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+
+type BudgetStopReason = "duplicate_search" | "search_budget" | "tool_budget";
+
+export interface InvestigationBudgetState {
+  toolCalls: number;
+  searchCodeCalls: number;
+  seenSearches: Set<string>;
+}
+
+export interface InvestigationBudget {
+  maxToolCalls: number;
+  maxSearchCodeCalls: number;
+}
+
+export interface BudgetInspection {
+  audits: RunEvent[];
+  stopReason?: BudgetStopReason;
+}
+
+export const createInvestigationBudgetState = (): InvestigationBudgetState => ({
+  toolCalls: 0,
+  searchCodeCalls: 0,
+  seenSearches: new Set<string>(),
+});
+
+const normalizeValue = (value: unknown): unknown => {
+  if (typeof value === "string") return value.trim().replace(/\s+/g, " ").toLowerCase();
+  if (Array.isArray(value)) return value.map(normalizeValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key.toLowerCase(), normalizeValue(entry)]),
+    );
+  }
+  return value;
+};
+
+const parseToolArguments = (value: unknown): unknown => {
+  if (typeof value !== "string") return value ?? {};
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+};
+
+const toolName = (call: Record<string, unknown>): string =>
+  str(obj(call["function"])["name"]) ?? str(obj(call["tool_info"])["name"]) ?? "unknown";
+
+const isSearchCode = (name: string): boolean =>
+  name.toLowerCase().replace(/[.-]/g, "_").endsWith("search_code");
+
+const searchFingerprint = (call: Record<string, unknown>): string =>
+  JSON.stringify(normalizeValue(parseToolArguments(obj(call["function"])["arguments"])));
+
+/**
+ * Accounts for proposed calls at the earliest event TrueForge exposes: model.message.
+ * A guard violation causes the caller to cancel the turn before accepting more events.
+ */
+export function inspectToolCallBudget(
+  raw: Record<string, unknown>,
+  state: InvestigationBudgetState,
+  budget: InvestigationBudget,
+): BudgetInspection {
+  if (str(raw["type"]) !== "model.message") return { audits: [] };
+  const data = obj(raw["data"] ?? raw);
+  const calls = Array.isArray(data["tool_calls"]) ? (data["tool_calls"] as unknown[]) : [];
+  const audits: RunEvent[] = [];
+
+  for (const candidate of calls) {
+    const call = obj(candidate);
+    const name = toolName(call);
+    const search = isSearchCode(name);
+    const fingerprint = search ? searchFingerprint(call) : "";
+    const deduplicated = search && state.seenSearches.has(fingerprint);
+
+    if (deduplicated) {
+      audits.push(budgetAudit(name, state, budget, true, "duplicate_search"));
+      return { audits, stopReason: "duplicate_search" };
+    }
+    if (state.toolCalls >= budget.maxToolCalls) {
+      audits.push(budgetAudit(name, state, budget, false, "tool_budget"));
+      return { audits, stopReason: "tool_budget" };
+    }
+    if (search && state.searchCodeCalls >= budget.maxSearchCodeCalls) {
+      audits.push(budgetAudit(name, state, budget, false, "search_budget"));
+      return { audits, stopReason: "search_budget" };
+    }
+
+    state.toolCalls += 1;
+    if (search) {
+      state.searchCodeCalls += 1;
+      state.seenSearches.add(fingerprint);
+    }
+    audits.push(budgetAudit(name, state, budget, false));
+  }
+
+  return { audits };
+}
+
+function budgetAudit(
+  name: string,
+  state: InvestigationBudgetState,
+  budget: InvestigationBudget,
+  deduplicated: boolean,
+  stopReason?: BudgetStopReason,
+): RunEvent {
+  return {
+    type: "audit",
+    entry: {
+      actor: "tool",
+      action: stopReason ? "TrueForge exploration stopped" : `Tool call proposed · ${name}`,
+      result: stopReason
+        ? stopReason === "duplicate_search"
+          ? "Equivalent GitHub search_code request suppressed"
+          : stopReason === "search_budget"
+            ? "GitHub search_code budget reached"
+            : "Investigation tool-call budget reached"
+        : `Tool call ${state.toolCalls} of ${budget.maxToolCalls}`,
+      status: stopReason ? "failed" : "started",
+      details: {
+        tool: name,
+        tool_call_count: state.toolCalls,
+        tool_call_budget: budget.maxToolCalls,
+        search_code_count: state.searchCodeCalls,
+        search_code_budget: budget.maxSearchCodeCalls,
+        deduplicated,
+        ...(stopReason ? { stop_reason: stopReason } : {}),
+      },
+    },
+  };
+}
+
+export function isRateLimitEvent(raw: Record<string, unknown>): boolean {
+  const type = str(raw["type"]) ?? "";
+  const data = obj(raw["data"] ?? raw);
+  const state = obj(data["state"]);
+  const terminalError = str(state["status"]) === "error" ? str(state["error"]) : undefined;
+  const directError = str(data["error"]) ?? str(data["message"]);
+  if (!type.includes("error") && !terminalError && !directError) return false;
+  return /(?:\b429\b|rate[ _-]?limit|resource[_ -]?exhausted|quota)/i.test(
+    [terminalError, directError].filter(Boolean).join(" "),
+  );
+}
+
+async function cancelSession(cfg: TrueForgeConfig, sessionId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${cfg.baseUrl}/api/v1/sessions/${sessionId}/cancel`, {
+      method: "POST",
+      headers: headers(cfg),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+const stopMessage = (reason: BudgetStopReason): string =>
+  reason === "duplicate_search"
+    ? "Investigation stopped: duplicate GitHub search suppressed. Partial evidence is preserved."
+    : reason === "search_budget"
+      ? "Investigation stopped: GitHub search budget reached. Partial evidence is preserved."
+      : "Investigation stopped: tool-call budget reached. Partial evidence is preserved.";
 
 function toolStep(id: string, label: string, action: string, detail: string): TimelineStep {
   return {
@@ -492,7 +699,17 @@ export function mapTrueForgeEvent(raw: Record<string, unknown>): RunEvent[] {
 
 export async function* runInvestigation(signal: AbortSignal): AsyncGenerator<RunEvent> {
   const cfg = trueForgeConfig();
-  const sessionId = await createSession(cfg);
+  let sessionId: string;
+  try {
+    sessionId = await createSession(cfg);
+  } catch (error) {
+    if (error instanceof TrueForgeRateLimitError) {
+      yield rateLimitAudit();
+      yield { type: "error", message: error.message };
+      return;
+    }
+    throw error;
+  }
 
   yield { type: "session", sessionId };
   yield { type: "run.started", steps: [], subagents: [] };
@@ -503,7 +720,13 @@ export async function* runInvestigation(signal: AbortSignal): AsyncGenerator<Run
       action: "TrueForge session created",
       result: `Read-only investigation of ${cfg.repository}`,
       status: "started",
-      details: { session_id: sessionId, model: cfg.model, mode: "read-only" },
+      details: {
+        session_id: sessionId,
+        model: cfg.model,
+        mode: "read-only",
+        tool_call_budget: cfg.maxToolCalls,
+        search_code_budget: cfg.maxSearchCodeCalls,
+      },
     },
   };
   yield { type: "phase", phase: "investigating" };
@@ -511,9 +734,69 @@ export async function* runInvestigation(signal: AbortSignal): AsyncGenerator<Run
   const input: TurnInput[] = [
     { type: "user.message", content: FIRST_SLICE_PROMPT(cfg.repository) },
   ];
-  for await (const raw of streamTurn(cfg, sessionId, input, signal)) {
-    for (const event of mapTrueForgeEvent(raw)) yield event;
+  const state = createInvestigationBudgetState();
+  try {
+    for await (const raw of streamTurn(cfg, sessionId, input, signal)) {
+      if (isRateLimitEvent(raw)) {
+        await cancelSession(cfg, sessionId);
+        yield rateLimitAudit(state, cfg);
+        yield { type: "error", message: "Investigation paused: model rate limit reached." };
+        return;
+      }
+
+      const inspection = inspectToolCallBudget(raw, state, cfg);
+      for (const audit of inspection.audits) yield audit;
+      if (inspection.stopReason) {
+        const cancelled = await cancelSession(cfg, sessionId);
+        yield {
+          type: "audit",
+          entry: {
+            actor: "agent",
+            action: "TrueForge turn cancelled",
+            result: stopMessage(inspection.stopReason),
+            status: "failed",
+            details: { stop_reason: inspection.stopReason, harness_cancelled: cancelled },
+          },
+        };
+        yield { type: "error", message: stopMessage(inspection.stopReason) };
+        return;
+      }
+
+      for (const event of mapTrueForgeEvent(raw)) yield event;
+    }
+  } catch (error) {
+    if (error instanceof TrueForgeRateLimitError) {
+      yield rateLimitAudit(state, cfg);
+      yield { type: "error", message: error.message };
+      return;
+    }
+    throw error;
   }
+}
+
+function rateLimitAudit(
+  state = createInvestigationBudgetState(),
+  budget: InvestigationBudget = {
+    maxToolCalls: DEFAULT_MAX_TOOL_CALLS,
+    maxSearchCodeCalls: DEFAULT_MAX_SEARCH_CODE_CALLS,
+  },
+): RunEvent {
+  return {
+    type: "audit",
+    entry: {
+      actor: "agent",
+      action: "Investigation paused by upstream limit",
+      result: "Model rate limit reached; no automatic retry was attempted",
+      status: "failed",
+      details: {
+        stop_reason: "rate_limit",
+        tool_call_count: state.toolCalls,
+        tool_call_budget: budget.maxToolCalls,
+        search_code_count: state.searchCodeCalls,
+        search_code_budget: budget.maxSearchCodeCalls,
+      },
+    },
+  };
 }
 
 export async function* submitDecision(
