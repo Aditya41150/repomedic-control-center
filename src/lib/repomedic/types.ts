@@ -58,6 +58,15 @@ export type StepKind =
 
 export type StepState = "pending" | "running" | "complete" | "blocked" | "failed";
 
+/** Coarse category shown as a chip on every timeline step. */
+export type StepCategory =
+  | "mcp_tool"
+  | "sandbox"
+  | "subagent"
+  | "analysis"
+  | "verification"
+  | "human_approval";
+
 export interface ToolCall {
   id: string;
   provider: string;
@@ -78,6 +87,14 @@ export interface TimelineStep {
   startedAt: string;
   durationMs: number;
   toolCalls: ToolCall[];
+  /** Chip category (MCP / TOOL, SANDBOX, SUBAGENT, ...). */
+  category: StepCategory;
+  /** Short human-readable name of the agent or tool, e.g. "GitHub MCP". */
+  toolLabel: string;
+  /** Imperative action, e.g. "Inspect recent deployment". */
+  action: string;
+  /** One-line evidence preview revealed when the step completes. */
+  resultPreview?: string | undefined;
 }
 
 export interface EvidenceItem {
