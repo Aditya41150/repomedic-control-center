@@ -189,9 +189,6 @@ function ControlRoom() {
                   </div>
                 )}
 
-                {state.hypothesis && <EvidenceBoard />}
-
-
                 {(state.phase === "awaiting_approval" ||
                   state.phase === "creating_pr" ||
                   state.phase === "approved" ||
@@ -208,6 +205,9 @@ function ControlRoom() {
                       onReset={run.reset}
                     />
                   )}
+
+                {state.hypothesis && <EvidenceBoard />}
+
 
                 {state.phase !== "idle" && (
                   <Tabs defaultValue="timeline">
