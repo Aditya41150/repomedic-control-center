@@ -89,6 +89,8 @@ export function useInvestigationRun() {
   const start = useCallback(async () => {
     if (running.current) return; // prevents duplicate runs
     running.current = true;
+    decided.current = false;
+
     const token = ++runToken.current;
     const { alive, wait, update, patchStep, log } = makeCtx(token);
 
