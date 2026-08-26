@@ -10,6 +10,7 @@ import {
   pace,
   reproductionRun,
   stepBlueprints,
+  stepResultPreview,
   stepToolCalls,
   subagentBlueprints,
   subagentFindings,
@@ -118,7 +119,11 @@ export function useInvestigationRun() {
       const finishStep = async (id: string, durationMs: number) => {
         await wait(pace.stepFinish);
         if (!alive()) return false;
-        patchStep(id, { state: "complete", durationMs });
+        patchStep(id, {
+          state: "complete",
+          durationMs,
+          ...(stepResultPreview[id] ? { resultPreview: stepResultPreview[id] } : {}),
+        });
         const ev = evidenceForStep[id];
         if (ev) update((prev) => ({ ...prev, evidence: [...prev.evidence, ...clone(ev)] }));
         return alive();
@@ -211,7 +216,11 @@ export function useInvestigationRun() {
       /* STEP 8 — Human approval gate (hard stop) */
       await wait(pace.stepStart);
       if (!alive()) return;
-      patchStep("step_approval", { state: "blocked", startedAt: new Date().toISOString() });
+      patchStep("step_approval", {
+        state: "blocked",
+        startedAt: new Date().toISOString(),
+        resultPreview: stepResultPreview["step_approval"] ?? "",
+      });
       update((prev) => ({ ...prev, phase: "awaiting_approval" }));
       log("Human approval required before creating a pull request");
     } catch {
@@ -249,6 +258,7 @@ export function useInvestigationRun() {
               ...s,
               state: "complete",
               durationMs: 2_400,
+              resultPreview: stepResultPreview["step_pr"] ?? "",
               toolCalls: [
                 {
                   id: "tc_pr",
