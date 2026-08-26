@@ -148,7 +148,7 @@ export interface IncidentInvestigation {
 export interface ApprovalDecision {
   incidentId: string;
   decision: "approve" | "reject";
-  note?: string;
+  note?: string | undefined;
 }
 
 /** The single seam every backend must implement. */
