@@ -32,10 +32,12 @@ function sseStream(source: (signal: AbortSignal) => AsyncGenerator<RunEvent>, si
       try {
         for await (const event of source(signal)) send(event);
       } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
         send({
           type: "error",
-          message: error instanceof Error ? error.message : "TrueForge harness stream failed",
+          message: `Could not reach the TrueForge harness (${detail}). Check that the harness is running and TRUEFORGE_BASE_URL / TRUEFORGE_API_TOKEN are configured.`,
         });
+
       } finally {
         controller.close();
       }
