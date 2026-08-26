@@ -32,10 +32,15 @@ function sseStream(source: (signal: AbortSignal) => AsyncGenerator<RunEvent>, si
       try {
         for await (const event of source(signal)) send(event);
       } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
+        const { sanitizeError, TrueForgeConfigError } =
+          await import("@/lib/repomedic/trueforge-driver.server");
+        const detail = sanitizeError(error);
         send({
           type: "error",
-          message: `Could not reach the TrueForge harness (${detail}). Check that the harness is running and TRUEFORGE_BASE_URL / TRUEFORGE_API_TOKEN are configured.`,
+          message:
+            error instanceof TrueForgeConfigError
+              ? detail
+              : `Could not reach the TrueForge harness (${detail}). Check that the harness is running and that TRUEFORGE_BASE_URL points at it.`,
         });
       } finally {
         controller.close();

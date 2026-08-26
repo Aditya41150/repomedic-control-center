@@ -38,6 +38,19 @@ export const initialRunState: RunState = {
   error: null,
 };
 
+const MODE_STORAGE_KEY = "repomedic.mode";
+
+/** Mode is remembered locally so a refresh keeps the operator in TRUEFORGE mode. */
+function storedMode(): RunMode | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(MODE_STORAGE_KEY);
+    return raw === "trueforge" || raw === "demo" ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useInvestigationRun(initialMode: RunMode = defaultRunMode()) {
   const [mode, setMode] = useState<RunMode>(initialMode);
   const [state, setState] = useState<RunState>(initialRunState);
@@ -48,6 +61,12 @@ export function useInvestigationRun(initialMode: RunMode = defaultRunMode()) {
   const decided = useRef(false);
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(true);
+
+  // Restore after hydration to avoid an SSR/client markup mismatch.
+  useEffect(() => {
+    const saved = storedMode();
+    if (saved) setMode(saved);
+  }, []);
 
   const driver = useMemo<RunDriver>(
     () => (mode === "trueforge" ? createTrueForgeDriver() : createDemoDriver()),
@@ -148,12 +167,17 @@ export function useInvestigationRun(initialMode: RunMode = defaultRunMode()) {
     setTimeout(() => void start(), 0);
   }, [reset, start]);
 
-  /** Switching harness mode always returns to a clean, un-started state. */
+  /** Switching harness mode always returns to a clean, un-started state, and persists. */
   const changeMode = useCallback(
     (next: RunMode) => {
       if (next === mode) return;
       reset();
       setMode(next);
+      try {
+        window.localStorage.setItem(MODE_STORAGE_KEY, next);
+      } catch {
+        // Storage unavailable (private mode) — mode simply won't persist.
+      }
     },
     [mode, reset],
   );
