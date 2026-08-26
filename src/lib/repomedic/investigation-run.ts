@@ -53,6 +53,9 @@ export function useInvestigationRun() {
   const [state, setState] = useState<RunState>(initialRunState);
   const runToken = useRef(0);
   const running = useRef(false);
+  /** True once the human has approved or rejected — blocks any second decision. */
+  const decided = useRef(false);
+
   const mounted = useRef(true);
 
   useEffect(() => {
