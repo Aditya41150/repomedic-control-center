@@ -186,7 +186,10 @@ describe("safety and demo contracts", () => {
       state,
     );
     const ended = partialStreamTerminationEvents(state);
-    assert.equal(prior.some((event) => event.type === "audit"), true);
+    assert.equal(
+      prior.some((event) => event.type === "audit"),
+      true,
+    );
     assert.deepEqual(
       ended.map((event) => event.type),
       ["audit", "error"],

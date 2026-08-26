@@ -536,7 +536,9 @@ const stringifyResult = (value: unknown): string =>
 const findPullRequest = (
   value: unknown,
 ): { number: number; url: string; title: string; status: string } | null => {
-  const visit = (candidate: unknown): { number?: number; url?: string; title?: string; status?: string } => {
+  const visit = (
+    candidate: unknown,
+  ): { number?: number; url?: string; title?: string; status?: string } => {
     if (typeof candidate === "string") {
       try {
         return visit(JSON.parse(candidate) as unknown);
@@ -554,7 +556,12 @@ const findPullRequest = (
     }
     if (!candidate || typeof candidate !== "object") return {};
     const record = obj(candidate);
-    const nestedCandidates = [record["data"], record["result"], record["content"], record["pull_request"]];
+    const nestedCandidates = [
+      record["data"],
+      record["result"],
+      record["content"],
+      record["pull_request"],
+    ];
     const url = str(record["html_url"]) ?? str(record["url"]);
     const rawNumber = record["number"] ?? record["pull_number"];
     const number =
@@ -593,9 +600,7 @@ const findPullRequest = (
     : null;
 };
 
-export function partialStreamTerminationEvents(
-  state: TrueForgeEventAdapterState,
-): RunEvent[] {
+export function partialStreamTerminationEvents(state: TrueForgeEventAdapterState): RunEvent[] {
   if (state.sawTerminalEvent || state.sawApprovalRequired) return [];
   return [
     {
@@ -603,7 +608,8 @@ export function partialStreamTerminationEvents(
       entry: {
         actor: "agent",
         action: "TrueForge stream ended",
-        result: "The stream ended before a terminal event; partial investigation evidence was preserved",
+        result:
+          "The stream ended before a terminal event; partial investigation evidence was preserved",
         status: "failed",
         details: { stop_reason: "stream_ended" },
       },
@@ -921,11 +927,7 @@ export async function* runInvestigation(signal: AbortSignal): AsyncGenerator<Run
   const input: TurnInput[] = [
     {
       type: "user.message",
-      content: FIRST_SLICE_PROMPT(
-        cfg.repository,
-        cfg.maxToolCalls,
-        cfg.maxSearchCodeCalls,
-      ),
+      content: FIRST_SLICE_PROMPT(cfg.repository, cfg.maxToolCalls, cfg.maxSearchCodeCalls),
     },
   ];
   const state = createInvestigationBudgetState();

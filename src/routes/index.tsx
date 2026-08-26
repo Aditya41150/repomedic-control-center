@@ -65,12 +65,11 @@ function ControlRoom() {
   const liveIncident = useMemo(
     () => ({
       ...demoIncident,
-      status:
-        run.state.pullRequest
-          ? ("patch_open" as const)
-          : run.state.phase === "waiting_for_approval"
-            ? ("awaiting_approval" as const)
-            : ("investigating" as const),
+      status: run.state.pullRequest
+        ? ("patch_open" as const)
+        : run.state.phase === "waiting_for_approval"
+          ? ("awaiting_approval" as const)
+          : ("investigating" as const),
     }),
     [run.state.phase, run.state.pullRequest],
   );
