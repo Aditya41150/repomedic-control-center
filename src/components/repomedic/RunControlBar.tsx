@@ -37,12 +37,14 @@ const phaseTone: Record<RunPhase, "muted" | "primary" | "caution" | "signal" | "
 
 export function RunControlBar({
   phase,
+  hasPullRequest,
   onStart,
   onReset,
   mode,
   onModeChange,
 }: {
   phase: RunPhase;
+  hasPullRequest: boolean;
   onStart: () => void;
   onReset: () => void;
   mode: RunMode;
@@ -50,6 +52,8 @@ export function RunControlBar({
 }) {
   const busy = isBusyPhase(phase);
   const started = phase !== "idle";
+  const statusLabel =
+    phase === "completed" && !hasPullRequest ? "investigation completed" : phaseLabel[phase];
 
   return (
     <section className="panel grid-backdrop overflow-hidden">
@@ -97,7 +101,7 @@ export function RunControlBar({
             ))}
           </div>
           <StatusPill tone={phaseTone[phase]} dot pulse={busy}>
-            {phaseLabel[phase]}
+            {statusLabel}
           </StatusPill>
           <Button onClick={onStart} disabled={busy || started} size="lg" data-testid="investigate">
             {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Play aria-hidden />}

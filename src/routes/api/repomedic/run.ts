@@ -19,6 +19,7 @@ const bodySchema = z.discriminatedUnion("action", [
     sessionId: z.string().min(1).max(200),
     threadId: z.string().min(1).max(200),
     toolCallId: z.string().min(1).max(200),
+    toolName: z.string().min(1).max(200).optional(),
     reason: z.string().max(500).optional(),
   }),
 ]);
@@ -70,6 +71,7 @@ export const Route = createFileRoute("/api/repomedic/run")({
                     body.sessionId,
                     body.threadId,
                     body.toolCallId,
+                    body.toolName,
                     body.action === "approve" ? "allow" : "deny",
                     body.reason,
                     signal,
