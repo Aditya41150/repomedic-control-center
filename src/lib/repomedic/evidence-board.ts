@@ -74,3 +74,30 @@ export const patchSummaryLines = {
   additions: 17,
   deletions: 9,
 };
+
+/**
+ * Human approval gate — the boundary between autonomous work and an
+ * external action. Demonstration data only; no GitHub call is ever made.
+ */
+export const approvalRequest = {
+  action: "Create GitHub Pull Request",
+  target: "checkout-service",
+  proposedChange: "Fix N+1 database query in checkout/order_service.py",
+  risk: "Medium",
+  reversibility: "High",
+  note: "The change is isolated to a pull request and has not been deployed.",
+  pausedExplanation:
+    "RepoMedic completed autonomous investigation and verification. The next action would create an external GitHub pull request, so human authorization is required.",
+  whyExplanation:
+    "RepoMedic can investigate, experiment, generate patches, and verify changes autonomously. External actions that affect shared infrastructure require explicit human authorization.",
+  evidence: [
+    "Failure reproduced",
+    "Root cause identified",
+    "Patch generated",
+    "Unit tests 32/32 passed",
+    "Integration tests 12/12 passed",
+    "Performance test passed",
+  ],
+  latencyBefore: "2.91s p95",
+  latencyAfter: "0.84s p95",
+};
