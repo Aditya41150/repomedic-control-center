@@ -167,12 +167,17 @@ export function useInvestigationRun(initialMode: RunMode = defaultRunMode()) {
     setTimeout(() => void start(), 0);
   }, [reset, start]);
 
-  /** Switching harness mode always returns to a clean, un-started state. */
+  /** Switching harness mode always returns to a clean, un-started state, and persists. */
   const changeMode = useCallback(
     (next: RunMode) => {
       if (next === mode) return;
       reset();
       setMode(next);
+      try {
+        window.localStorage.setItem(MODE_STORAGE_KEY, next);
+      } catch {
+        // Storage unavailable (private mode) — mode simply won't persist.
+      }
     },
     [mode, reset],
   );
