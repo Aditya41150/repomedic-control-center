@@ -53,6 +53,9 @@ export function useInvestigationRun() {
   const [state, setState] = useState<RunState>(initialRunState);
   const runToken = useRef(0);
   const running = useRef(false);
+  /** True once the human has approved or rejected — blocks any second decision. */
+  const decided = useRef(false);
+
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -86,6 +89,8 @@ export function useInvestigationRun() {
   const start = useCallback(async () => {
     if (running.current) return; // prevents duplicate runs
     running.current = true;
+    decided.current = false;
+
     const token = ++runToken.current;
     const { alive, wait, update, patchStep, log } = makeCtx(token);
 
@@ -237,13 +242,20 @@ export function useInvestigationRun() {
   }, [makeCtx]);
 
   const approve = useCallback(async (note?: string) => {
+    // Safety: the external action can be authorised exactly once, and only
+    // from the paused approval gate.
+    if (decided.current) return;
+    decided.current = true;
+
     const token = ++runToken.current;
     const { alive, wait, update, patchStep, log } = makeCtx(token);
 
     update((prev) => ({ ...prev, phase: "creating_pr" }));
     patchStep("step_approval", { state: "complete", durationMs: 0 });
+    log("Human approval recorded — external action authorised", "human");
     log(`Human approved PR creation${note ? ` — “${note}”` : ""}`, "human");
     patchStep("step_pr", { state: "running", startedAt: new Date().toISOString() });
+
 
     await wait(pace.prCreation);
     if (!alive()) return;
@@ -282,6 +294,8 @@ export function useInvestigationRun() {
   }, [makeCtx]);
 
   const reject = useCallback((note?: string) => {
+    if (decided.current) return;
+    decided.current = true;
     runToken.current += 1;
     running.current = false;
     setState((prev) => ({
@@ -296,7 +310,7 @@ export function useInvestigationRun() {
       ),
       auditLog: [
         ...prev.auditLog,
-        entry(`Human rejected action${note ? ` — “${note}”` : ""}`, "human"),
+        entry(`Human rejected PR creation${note ? ` — “${note}”` : ""}`, "human"),
         entry("Workflow stopped. No pull request was created and the patch branch was discarded."),
       ],
     }));
@@ -305,8 +319,10 @@ export function useInvestigationRun() {
   const reset = useCallback(() => {
     runToken.current += 1;
     running.current = false;
+    decided.current = false;
     setState(clone(initialRunState));
   }, []);
+
 
   return { state, start, approve, reject, reset };
 }
