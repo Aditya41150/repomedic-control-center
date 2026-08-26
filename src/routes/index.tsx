@@ -190,11 +190,8 @@ function ControlRoom() {
                   </div>
                 )}
 
-                {state.hypothesis && (
-                  <RootCauseCard hypothesis={state.hypothesis} commit="81ac2" />
-                )}
+                {state.hypothesis && <EvidenceBoard />}
 
-                {state.verification && <VerificationPanel report={state.verification} />}
 
                 {(state.phase === "awaiting_approval" ||
                   state.phase === "creating_pr" ||
