@@ -294,6 +294,8 @@ export function useInvestigationRun() {
   }, [makeCtx]);
 
   const reject = useCallback((note?: string) => {
+    if (decided.current) return;
+    decided.current = true;
     runToken.current += 1;
     running.current = false;
     setState((prev) => ({
@@ -308,7 +310,7 @@ export function useInvestigationRun() {
       ),
       auditLog: [
         ...prev.auditLog,
-        entry(`Human rejected action${note ? ` — “${note}”` : ""}`, "human"),
+        entry(`Human rejected PR creation${note ? ` — “${note}”` : ""}`, "human"),
         entry("Workflow stopped. No pull request was created and the patch branch was discarded."),
       ],
     }));
@@ -317,8 +319,10 @@ export function useInvestigationRun() {
   const reset = useCallback(() => {
     runToken.current += 1;
     running.current = false;
+    decided.current = false;
     setState(clone(initialRunState));
   }, []);
+
 
   return { state, start, approve, reject, reset };
 }
