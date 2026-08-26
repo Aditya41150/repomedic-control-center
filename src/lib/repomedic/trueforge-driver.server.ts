@@ -205,6 +205,13 @@ function headers(cfg: TrueForgeConfig): Record<string, string> {
   };
 }
 
+export async function ensureTrueForgeResponse(res: Response, operation: string): Promise<void> {
+  if (res.status === 429) throw new TrueForgeRateLimitError();
+  if (!res.ok || !res.body) {
+    throw new Error(`TrueForge ${operation} failed (${res.status}): ${await res.text()}`);
+  }
+}
+
 /** Creates an inline session configured for read-only GitHub MCP forensics. */
 export async function createSession(cfg: TrueForgeConfig): Promise<string> {
   const res = await fetch(`${cfg.baseUrl}/api/v1/sessions`, {
@@ -230,10 +237,7 @@ export async function createSession(cfg: TrueForgeConfig): Promise<string> {
       },
     }),
   });
-  if (!res.ok) {
-    if (res.status === 429) throw new TrueForgeRateLimitError();
-    throw new Error(`TrueForge session creation failed (${res.status}): ${await res.text()}`);
-  }
+  await ensureTrueForgeResponse(res, "session creation");
   const body = (await res.json()) as { data?: { id?: string }; id?: string };
   const id = body.data?.id ?? body.id;
   if (!id) throw new Error("TrueForge session response contained no session id");
@@ -262,10 +266,7 @@ async function* streamTurn(
     body: JSON.stringify({ input, stream: true }),
     signal,
   });
-  if (!res.ok || !res.body) {
-    if (res.status === 429) throw new TrueForgeRateLimitError();
-    throw new Error(`TrueForge turn failed (${res.status}): ${await res.text()}`);
-  }
+  await ensureTrueForgeResponse(res, "turn");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -836,7 +837,21 @@ export async function* submitDecision(
       approval: { status, ...(reason ? { reason } : {}) },
     },
   ];
-  for await (const raw of streamTurn(cfg, sessionId, input, signal)) {
-    for (const event of mapTrueForgeEvent(raw)) yield event;
+  try {
+    for await (const raw of streamTurn(cfg, sessionId, input, signal)) {
+      if (isRateLimitEvent(raw)) {
+        yield rateLimitAudit(undefined, cfg);
+        yield { type: "error", message: "Investigation paused: model rate limit reached." };
+        return;
+      }
+      for (const event of mapTrueForgeEvent(raw)) yield event;
+    }
+  } catch (error) {
+    if (error instanceof TrueForgeRateLimitError) {
+      yield rateLimitAudit(undefined, cfg);
+      yield { type: "error", message: error.message };
+      return;
+    }
+    throw error;
   }
 }

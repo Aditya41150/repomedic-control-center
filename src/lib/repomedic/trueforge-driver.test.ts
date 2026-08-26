@@ -4,6 +4,7 @@ import { describe, test } from "node:test";
 import { createDemoDriver } from "./demo-driver";
 import {
   createInvestigationBudgetState,
+  ensureTrueForgeResponse,
   inspectToolCallBudget,
   isRateLimitEvent,
   mapTrueForgeEvent,
@@ -99,6 +100,16 @@ describe("TrueForge investigation budgets", () => {
       true,
     );
     assert.equal(isRateLimitEvent({ type: "turn.done", state: { status: "done" } }), false);
+  });
+
+  test("classifies an HTTP 429 as a rate-limit pause", async () => {
+    await assert.rejects(
+      ensureTrueForgeResponse(new Response("quota", { status: 429 }), "turn"),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.name === "TrueForgeRateLimitError" &&
+        error.message === "Investigation paused: model rate limit reached.",
+    );
   });
 });
 
