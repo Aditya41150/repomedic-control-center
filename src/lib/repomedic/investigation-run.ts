@@ -103,7 +103,7 @@ export function useInvestigationRun() {
     try {
       update(() => ({
         ...clone(initialRunState),
-        phase: "running",
+        phase: "investigating",
         steps: clone(stepBlueprints),
         subagents: clone(subagentBlueprints),
         auditLog: [
@@ -334,7 +334,7 @@ export function useInvestigationRun() {
         startedAt: new Date().toISOString(),
         resultPreview: stepResultPreview["step_approval"] ?? "",
       });
-      update((prev) => ({ ...prev, phase: "awaiting_approval" }));
+      update((prev) => ({ ...prev, phase: "waiting_for_approval" }));
       log({
         actor: "agent",
         action: "Human approval requested",
@@ -385,7 +385,7 @@ export function useInvestigationRun() {
 
     update((prev) => ({
       ...prev,
-      phase: "approved",
+      phase: "completed",
       pullRequest: clone(demoPullRequest),
       steps: prev.steps.map((s) =>
         s.id === "step_pr"

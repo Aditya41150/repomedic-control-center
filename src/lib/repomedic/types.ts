@@ -182,12 +182,38 @@ export interface RepoMedicClient {
 
 export type RunPhase =
   | "idle"
-  | "running"
-  | "awaiting_approval"
+  | "investigating"
+  | "analyzing"
+  | "subagents_running"
+  | "sandbox_running"
+  | "patch_generating"
+  | "verifying"
+  | "waiting_for_approval"
   | "creating_pr"
-  | "approved"
+  | "completed"
   | "rejected"
   | "error";
+
+/** Phases where the autonomous agent is actively working. */
+export const ACTIVE_PHASES: readonly RunPhase[] = [
+  "investigating",
+  "analyzing",
+  "subagents_running",
+  "sandbox_running",
+  "patch_generating",
+  "verifying",
+];
+
+export const isAgentWorking = (phase: RunPhase): boolean =>
+  (ACTIVE_PHASES as RunPhase[]).includes(phase);
+
+/** Phases where no new control action (other than reset) should be possible. */
+export const isBusyPhase = (phase: RunPhase): boolean =>
+  isAgentWorking(phase) || phase === "creating_pr";
+
+/** Terminal phases — the run is finished and cannot advance further. */
+export const isTerminalPhase = (phase: RunPhase): boolean =>
+  phase === "completed" || phase === "rejected" || phase === "error";
 
 export interface SubagentTask {
   id: string;
