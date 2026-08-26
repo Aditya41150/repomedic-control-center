@@ -57,6 +57,8 @@ const entry = (input: AuditInput): AuditEntry => ({
 
 export function useInvestigationRun() {
   const [state, setState] = useState<RunState>(initialRunState);
+  /** Mirrors state.phase so guards can read it synchronously. */
+  const phaseRef = useRef<RunState["phase"]>("idle");
   const runToken = useRef(0);
   const running = useRef(false);
   /** True once the human has approved or rejected — blocks any second decision. */
@@ -80,7 +82,11 @@ export function useInvestigationRun() {
       });
     const update = (fn: (prev: RunState) => RunState) => {
       if (!alive()) return;
-      setState(fn);
+      setState((prev) => {
+        const next = fn(prev);
+        phaseRef.current = next.phase;
+        return next;
+      });
     };
     const patchStep = (id: string, patch: Partial<TimelineStep>) =>
       update((prev) => ({
@@ -93,7 +99,8 @@ export function useInvestigationRun() {
   }, []);
 
   const start = useCallback(async () => {
-    if (running.current) return; // prevents duplicate runs
+    // Guards: no duplicate runs, and no restart over a run in any other phase.
+    if (running.current || phaseRef.current !== "idle") return;
     running.current = true;
     decided.current = false;
 
@@ -103,7 +110,7 @@ export function useInvestigationRun() {
     try {
       update(() => ({
         ...clone(initialRunState),
-        phase: "running",
+        phase: "investigating",
         steps: clone(stepBlueprints),
         subagents: clone(subagentBlueprints),
         auditLog: [
@@ -177,6 +184,7 @@ export function useInvestigationRun() {
         },
       });
 
+      update((prev) => ({ ...prev, phase: "analyzing" }));
       /* STEP 2 — Metrics + logs */
       if (!(await runStep("step_telemetry"))) return;
       if (!(await finishStep("step_telemetry", 11_200))) return;
@@ -200,6 +208,7 @@ export function useInvestigationRun() {
         details: { subagents: "Application, Database, Deployment" },
       });
 
+      update((prev) => ({ ...prev, phase: "subagents_running" }));
       /* STEP 3 — Parallel subagents */
       await wait(pace.stepStart);
       if (!alive()) return;
@@ -251,6 +260,7 @@ export function useInvestigationRun() {
         details: { tool: "sandbox.execute", command: "python reproduce_checkout.py", sandbox: "sbx-9a12" },
       });
 
+      update((prev) => ({ ...prev, phase: "sandbox_running" }));
       /* STEP 4 — Sandbox reproduction */
       if (!(await runStep("step_sandbox"))) return;
       update((prev) => ({
@@ -278,6 +288,7 @@ export function useInvestigationRun() {
         },
       });
 
+      update((prev) => ({ ...prev, phase: "analyzing" }));
       /* STEP 5 — Root cause */
       if (!(await runStep("step_rootcause"))) return;
       update((prev) => ({ ...prev, hypothesis: clone(demoHypothesis) }));
@@ -289,6 +300,7 @@ export function useInvestigationRun() {
         details: { commit: "81ac2", confidence: "94%", service: "checkout-service" },
       });
 
+      update((prev) => ({ ...prev, phase: "patch_generating" }));
       /* STEP 6 — Patch generation */
       if (!(await runStep("step_patch"))) return;
       update((prev) => ({ ...prev, patch: clone(demoPatch) }));
@@ -304,6 +316,7 @@ export function useInvestigationRun() {
         },
       });
 
+      update((prev) => ({ ...prev, phase: "verifying" }));
       /* STEP 7 — Patch verification */
       if (!(await runStep("step_verify"))) return;
       for (const run of verificationRuns) {
@@ -334,7 +347,7 @@ export function useInvestigationRun() {
         startedAt: new Date().toISOString(),
         resultPreview: stepResultPreview["step_approval"] ?? "",
       });
-      update((prev) => ({ ...prev, phase: "awaiting_approval" }));
+      update((prev) => ({ ...prev, phase: "waiting_for_approval" }));
       log({
         actor: "agent",
         action: "Human approval requested",
@@ -344,6 +357,7 @@ export function useInvestigationRun() {
       });
     } catch {
       if (mounted.current && runToken.current === token) {
+        phaseRef.current = "error";
         setState((prev) => ({
           ...prev,
           phase: "error",
@@ -358,7 +372,8 @@ export function useInvestigationRun() {
   const approve = useCallback(async (note?: string) => {
     // Safety: the external action can be authorised exactly once, and only
     // from the paused approval gate.
-    if (decided.current) return;
+    // Only the paused approval gate can authorise the external action.
+    if (decided.current || phaseRef.current !== "waiting_for_approval") return;
     decided.current = true;
 
     const token = ++runToken.current;
@@ -385,7 +400,7 @@ export function useInvestigationRun() {
 
     update((prev) => ({
       ...prev,
-      phase: "approved",
+      phase: "completed",
       pullRequest: clone(demoPullRequest),
       steps: prev.steps.map((s) =>
         s.id === "step_pr"
@@ -427,10 +442,11 @@ export function useInvestigationRun() {
   }, [makeCtx]);
 
   const reject = useCallback((note?: string) => {
-    if (decided.current) return;
+    if (decided.current || phaseRef.current !== "waiting_for_approval") return;
     decided.current = true;
     runToken.current += 1;
     running.current = false;
+    phaseRef.current = "rejected";
     setState((prev) => ({
       ...prev,
       phase: "rejected",
@@ -465,12 +481,25 @@ export function useInvestigationRun() {
   }, []);
 
   const reset = useCallback(() => {
+    // Works from every phase: cancels any in-flight run and restores the
+    // pristine demo state (incident, timeline, evidence, patch, PR, audit).
     runToken.current += 1;
     running.current = false;
     decided.current = false;
+    phaseRef.current = "idle";
     setState(clone(initialRunState));
   }, []);
 
 
-  return { state, start, approve, reject, reset };
+  /** Clears a failed/finished run and immediately starts a fresh one. */
+  const retry = useCallback(() => {
+    runToken.current += 1;
+    running.current = false;
+    decided.current = false;
+    phaseRef.current = "idle";
+    setState(clone(initialRunState));
+    setTimeout(() => void start(), 0);
+  }, [start]);
+
+  return { state, start, approve, reject, reset, retry };
 }

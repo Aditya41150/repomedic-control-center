@@ -25,6 +25,7 @@ import { EvidenceBoard } from "@/components/repomedic/EvidenceBoard";
 import { LiveApprovalPanel } from "@/components/repomedic/LiveApprovalPanel";
 import { getRepoMedicClient } from "@/lib/repomedic/client";
 import { useInvestigationRun } from "@/lib/repomedic/investigation-run";
+import { isBusyPhase } from "@/lib/repomedic/types";
 import {
   CONVERGED_FINDING,
   DEMO_INCIDENT_ID,
@@ -69,9 +70,9 @@ function ControlRoom() {
     () => ({
       ...demoIncident,
       status:
-        run.state.phase === "approved"
+        run.state.phase === "completed"
           ? ("patch_open" as const)
-          : run.state.phase === "awaiting_approval"
+          : run.state.phase === "waiting_for_approval"
             ? ("awaiting_approval" as const)
             : ("investigating" as const),
     }),
@@ -130,7 +131,14 @@ function ControlRoom() {
               autonomous production-incident investigation
             </p>
           </div>
+          <span
+            className="ml-auto rounded border border-caution/45 bg-caution/12 px-2 py-1 font-mono text-[10px] tracking-[0.16em] text-caution uppercase"
+            title="Deterministic simulated data — no external GitHub, monitoring, sandbox or TrueForge execution is connected yet."
+          >
+            Demo mode
+          </span>
         </div>
+
       </header>
 
       <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-4 md:px-6 md:py-6">
@@ -150,7 +158,7 @@ function ControlRoom() {
               isLoading={incidents.isLoading}
               selectedId={selectedId}
               onSelect={(id) => {
-                if (state.phase === "running" || state.phase === "creating_pr") {
+                if (isBusyPhase(state.phase)) {
                   toast.message("An investigation is running — wait for the approval gate.");
                   return;
                 }
@@ -170,15 +178,35 @@ function ControlRoom() {
                   onReset={run.reset}
                 />
 
-                {state.error && (
-                  <div className="panel flex items-center gap-3 border-critical/40 px-5 py-4">
-                    <AlertCircle className="h-5 w-5 text-critical" aria-hidden />
-                    <p className="text-sm">{state.error}</p>
-                    <Button variant="outline" size="sm" className="ml-auto" onClick={run.reset}>
-                      Reset demo
-                    </Button>
-                  </div>
+                {state.phase === "error" && (
+                  <section
+                    role="alert"
+                    aria-live="assertive"
+                    className="panel border-critical/45 bg-critical/6 px-5 py-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-critical" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <h2 className="font-mono text-xs tracking-[0.14em] text-critical uppercase">
+                          Investigation error
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {state.error ??
+                            "The investigation run stopped unexpectedly. No patch was applied and no pull request was created."}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button size="sm" onClick={run.retry}>
+                            Retry investigation
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={run.reset}>
+                            Reset demo
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
                 )}
+
 
                 {state.phase === "idle" && (
                   <div className="panel px-6 py-14 text-center">
@@ -191,9 +219,9 @@ function ControlRoom() {
                   </div>
                 )}
 
-                {(state.phase === "awaiting_approval" ||
+                {(state.phase === "waiting_for_approval" ||
                   state.phase === "creating_pr" ||
-                  state.phase === "approved" ||
+                  state.phase === "completed" ||
                   state.phase === "rejected") &&
                   state.patch && (
                     <LiveApprovalPanel
