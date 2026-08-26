@@ -1003,12 +1003,14 @@ export async function* submitDecision(
   sessionId: string,
   threadId: string,
   toolCallId: string,
+  toolName: string | undefined,
   status: "allow" | "deny",
   reason: string | undefined,
   signal: AbortSignal,
 ): AsyncGenerator<RunEvent> {
   const cfg = trueForgeConfig();
   const adapterState = createTrueForgeEventAdapterState();
+  if (toolName) adapterState.proposedTools.set(toolCallId, { name: toolName, args: {} });
   yield {
     type: "audit",
     entry: {

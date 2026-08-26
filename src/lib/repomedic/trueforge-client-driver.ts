@@ -73,6 +73,7 @@ export function createTrueForgeDriver(): RunDriver {
         sessionId,
         threadId: pending.threadId,
         toolCallId: pending.toolCallId,
+        ...(pending.toolName ? { toolName: pending.toolName } : {}),
         ...(reason ? { reason } : {}),
       },
       ctx,
