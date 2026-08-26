@@ -237,13 +237,20 @@ export function useInvestigationRun() {
   }, [makeCtx]);
 
   const approve = useCallback(async (note?: string) => {
+    // Safety: the external action can be authorised exactly once, and only
+    // from the paused approval gate.
+    if (decided.current) return;
+    decided.current = true;
+
     const token = ++runToken.current;
     const { alive, wait, update, patchStep, log } = makeCtx(token);
 
     update((prev) => ({ ...prev, phase: "creating_pr" }));
     patchStep("step_approval", { state: "complete", durationMs: 0 });
+    log("Human approval recorded — external action authorised", "human");
     log(`Human approved PR creation${note ? ` — “${note}”` : ""}`, "human");
     patchStep("step_pr", { state: "running", startedAt: new Date().toISOString() });
+
 
     await wait(pace.prCreation);
     if (!alive()) return;
