@@ -552,6 +552,7 @@ const findPullRequest = (
       }
       return {};
     }
+    if (!candidate || typeof candidate !== "object") return {};
     const record = obj(candidate);
     const nestedCandidates = [record["data"], record["result"], record["content"], record["pull_request"]];
     const url = str(record["html_url"]) ?? str(record["url"]);
@@ -828,6 +829,7 @@ export function mapTrueForgeEvent(
           toolName: state.proposedTools.get(str(first["id"]) ?? "")?.name,
           threadId,
           toolCallId: str(first["id"]),
+          args: state.proposedTools.get(str(first["id"]) ?? "")?.args,
         },
       });
       out.push({

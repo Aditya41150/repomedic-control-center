@@ -4,10 +4,12 @@ import { describe, test } from "node:test";
 import { createDemoDriver } from "./demo-driver";
 import {
   createInvestigationBudgetState,
+  createTrueForgeEventAdapterState,
   ensureTrueForgeResponse,
   inspectToolCallBudget,
   isRateLimitEvent,
   mapTrueForgeEvent,
+  partialStreamTerminationEvents,
 } from "./trueforge-driver.server";
 import type { RunEvent } from "./run-driver";
 
@@ -114,6 +116,53 @@ describe("TrueForge investigation budgets", () => {
 });
 
 describe("safety and demo contracts", () => {
+  test("consumes model.message.delta without an unmapped audit event", () => {
+    const events = mapTrueForgeEvent({
+      type: "model.message.delta",
+      id: "delta-1",
+      thread_id: "main",
+      content: "partial token",
+    });
+    assert.deepEqual(events, []);
+  });
+
+  test("does not infer a pull request from turn completion", () => {
+    const events = mapTrueForgeEvent({ type: "turn.done", state: { status: "done" } });
+    assert.equal(
+      events.some((event) => event.type === "pull_request"),
+      false,
+    );
+  });
+
+  test("maps a validated create_pull_request tool result", () => {
+    const state = createTrueForgeEventAdapterState();
+    mapTrueForgeEvent(toolMessage("create_pull_request", { owner: "Aditya41150" }, "pr-1"), state);
+    const events = mapTrueForgeEvent(
+      {
+        type: "tool.response",
+        tool_call_id: "pr-1",
+        content: JSON.stringify({
+          number: 1842,
+          html_url: "https://github.com/Aditya41150/repomedic-control-center/pull/1842",
+          title: "Replace deterministic workflow",
+          state: "open",
+        }),
+      },
+      state,
+    );
+    const event = events.find((candidate) => candidate.type === "pull_request");
+    assert.deepEqual(event, {
+      type: "pull_request",
+      pullRequest: {
+        number: 1842,
+        title: "Replace deterministic workflow",
+        url: "https://github.com/Aditya41150/repomedic-control-center/pull/1842",
+        checks: "pending",
+        status: "open",
+      },
+    });
+  });
+
   test("approval-required remains a pause and never creates a PR", () => {
     const events = mapTrueForgeEvent({
       type: "tool.approval_required",
@@ -127,6 +176,27 @@ describe("safety and demo contracts", () => {
     assert.equal(
       events.some((event) => event.type === "pull_request"),
       false,
+    );
+  });
+
+  test("preserves partial state when a stream ends without a terminal event", () => {
+    const state = createTrueForgeEventAdapterState();
+    const prior = mapTrueForgeEvent(
+      { type: "model.message", content: "Located the workflow in investigation-run.ts" },
+      state,
+    );
+    const ended = partialStreamTerminationEvents(state);
+    assert.equal(prior.some((event) => event.type === "audit"), true);
+    assert.deepEqual(
+      ended.map((event) => event.type),
+      ["audit", "error"],
+    );
+    assert.equal(
+      ended.some(
+        (event) =>
+          event.type === "error" && event.message.includes("Partial evidence is preserved"),
+      ),
+      true,
     );
   });
 

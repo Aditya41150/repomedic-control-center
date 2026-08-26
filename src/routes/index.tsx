@@ -66,13 +66,13 @@ function ControlRoom() {
     () => ({
       ...demoIncident,
       status:
-        run.state.phase === "completed"
+        run.state.pullRequest
           ? ("patch_open" as const)
           : run.state.phase === "waiting_for_approval"
             ? ("awaiting_approval" as const)
             : ("investigating" as const),
     }),
-    [run.state.phase],
+    [run.state.phase, run.state.pullRequest],
   );
 
   const queue = useMemo(
@@ -170,6 +170,7 @@ function ControlRoom() {
 
                 <RunControlBar
                   phase={state.phase}
+                  hasPullRequest={state.pullRequest !== null}
                   onStart={() => void run.start()}
                   mode={run.mode}
                   onModeChange={run.setMode}
