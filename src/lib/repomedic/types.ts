@@ -212,11 +212,23 @@ export interface PullRequestResult {
   status: string;
 }
 
+export type AuditActor = "agent" | "subagent" | "tool" | "sandbox" | "human";
+
+export type AuditStatus = "completed" | "started" | "approved" | "rejected" | "failed";
+
 export interface AuditEntry {
+  id: string;
   at: string;
-  message: string;
-  actor: "agent" | "human";
+  actor: AuditActor;
+  /** Short imperative summary, e.g. "Root cause identified". */
+  action: string;
+  /** One-line outcome shown under the action. */
+  result: string;
+  status: AuditStatus;
+  /** Optional key/value technical detail shown when the event is expanded. */
+  details?: Record<string, string>;
 }
+
 
 export interface RunState {
   phase: RunPhase;
