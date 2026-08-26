@@ -59,7 +59,11 @@ describe("TrueForge investigation budgets", () => {
   test("enforces total and search-specific budgets", () => {
     const toolState = createInvestigationBudgetState();
     const toolBudget = { maxToolCalls: 1, maxSearchCodeCalls: 3 };
-    inspectToolCallBudget(toolMessage("get_file_contents", { path: "README.md" }), toolState, toolBudget);
+    inspectToolCallBudget(
+      toolMessage("get_file_contents", { path: "README.md" }),
+      toolState,
+      toolBudget,
+    );
     assert.equal(
       inspectToolCallBudget(
         toolMessage("get_file_contents", { path: "package.json" }, "call-2"),
@@ -71,7 +75,11 @@ describe("TrueForge investigation budgets", () => {
 
     const searchState = createInvestigationBudgetState();
     const searchBudget = { maxToolCalls: 10, maxSearchCodeCalls: 1 };
-    inspectToolCallBudget(toolMessage("search_code", { query: "first" }), searchState, searchBudget);
+    inspectToolCallBudget(
+      toolMessage("search_code", { query: "first" }),
+      searchState,
+      searchBudget,
+    );
     assert.equal(
       inspectToolCallBudget(
         toolMessage("search_code", { query: "second" }, "call-2"),
@@ -101,23 +109,34 @@ describe("safety and demo contracts", () => {
       thread_id: "main",
       tool_calls: [{ id: "write-1", name: "create_branch" }],
     });
-    assert.equal(events.some((event) => event.type === "approval.required"), true);
-    assert.equal(events.some((event) => event.type === "pull_request"), false);
+    assert.equal(
+      events.some((event) => event.type === "approval.required"),
+      true,
+    );
+    assert.equal(
+      events.some((event) => event.type === "pull_request"),
+      false,
+    );
   });
 
   test("demo startup contract remains deterministic and network-free", async () => {
     const events: RunEvent[] = [];
     const controller = new AbortController();
-    const started = createDemoDriver().start({ emit: (event) => events.push(event), signal: controller.signal });
+    const started = createDemoDriver().start({
+      emit: (event) => events.push(event),
+      signal: controller.signal,
+    });
     controller.abort();
     await started;
 
-    assert.deepEqual(events.slice(0, 3).map((event) => event.type), [
-      "run.started",
-      "phase",
-      "audit",
-    ]);
+    assert.deepEqual(
+      events.slice(0, 3).map((event) => event.type),
+      ["run.started", "phase", "audit"],
+    );
     assert.deepEqual(events[1], { type: "phase", phase: "investigating" });
-    assert.equal(events.some((event) => event.type === "pull_request"), false);
+    assert.equal(
+      events.some((event) => event.type === "pull_request"),
+      false,
+    );
   });
 });
