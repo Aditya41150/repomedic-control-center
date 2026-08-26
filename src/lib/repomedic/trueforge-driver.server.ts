@@ -28,16 +28,121 @@ export interface TrueForgeConfig {
   repository: string;
 }
 
-/** Read env inside the request path — Workers inject env per request. */
+/** Thrown when the server environment is not configured for the real harness. */
+export class TrueForgeConfigError extends Error {
+  readonly missing: string[];
+  constructor(missing: string[]) {
+    super(
+      `TrueForge is not configured on the server. Missing environment variable(s): ${missing.join(", ")}. ` +
+        `Set them in your local .env (see .env.example) and restart the app.`,
+    );
+    this.name = "TrueForgeConfigError";
+    this.missing = missing;
+  }
+}
+
+const read = (name: string): string | undefined => {
+  const value = process.env[name];
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+};
+
+/**
+ * Read env inside the request path — Workers inject env per request.
+ * Values come exclusively from server-side `process.env`; nothing is read from the
+ * client bundle, and the token is never returned to the browser.
+ */
 export function trueForgeConfig(): TrueForgeConfig {
+  const baseUrl = read("TRUEFORGE_BASE_URL");
+  const model = read("TRUEFORGE_MODEL");
+  const githubMcpServer = read("TRUEFORGE_GITHUB_MCP_SERVER");
+  const repository = read("TRUEFORGE_REPOSITORY");
+
+  const missing = [
+    ["TRUEFORGE_BASE_URL", baseUrl],
+    ["TRUEFORGE_MODEL", model],
+    ["TRUEFORGE_GITHUB_MCP_SERVER", githubMcpServer],
+    ["TRUEFORGE_REPOSITORY", repository],
+  ]
+    .filter(([, v]) => !v)
+    .map(([k]) => k as string);
+
+  if (missing.length > 0) throw new TrueForgeConfigError(missing);
+
   return {
-    baseUrl: (process.env["TRUEFORGE_BASE_URL"] ?? "http://localhost:3000").replace(/\/$/, ""),
-    token: process.env["TRUEFORGE_API_TOKEN"],
-    model: process.env["TRUEFORGE_MODEL"] ?? "gemini-2.5-pro",
-    githubMcpServer: process.env["TRUEFORGE_GITHUB_MCP_SERVER"] ?? "github",
-    repository: process.env["TRUEFORGE_REPOSITORY"] ?? "Aditya41150/repomedic",
+    baseUrl: baseUrl!.replace(/\/$/, ""),
+    // Never logged or returned; only used as an Authorization header value.
+    token: read("TRUEFORGE_API_TOKEN"),
+    model: model!,
+    githubMcpServer: githubMcpServer!,
+    repository: repository!,
   };
 }
+
+/** Strips anything secret-shaped out of an error before it reaches the browser. */
+export function sanitizeError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const token = process.env["TRUEFORGE_API_TOKEN"];
+  const cleaned = token ? raw.split(token).join("***") : raw;
+  return cleaned.replace(/Bearer\s+[\w.\-]+/gi, "Bearer ***").slice(0, 400);
+}
+
+export interface TrueForgeHealth {
+  reachable: boolean;
+  status: number | null;
+  latencyMs: number;
+  error: string | null;
+  /** Which required variables are missing (names only, never values). */
+  missingConfig: string[];
+}
+
+/**
+ * Minimal connectivity probe: a single GET against the configured base URL.
+ * Reports reachability, HTTP status, latency and a sanitized error only —
+ * no environment values are ever included.
+ */
+export async function checkTrueForgeHealth(timeoutMs = 4000): Promise<TrueForgeHealth> {
+  let cfg: TrueForgeConfig;
+  try {
+    cfg = trueForgeConfig();
+  } catch (error) {
+    return {
+      reachable: false,
+      status: null,
+      latencyMs: 0,
+      error: sanitizeError(error),
+      missingConfig: error instanceof TrueForgeConfigError ? error.missing : [],
+    };
+  }
+
+  const started = Date.now();
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${cfg.baseUrl}/`, {
+      method: "GET",
+      headers: cfg.token ? { authorization: `Bearer ${cfg.token}` } : {},
+      signal: ac.signal,
+    });
+    return {
+      reachable: true,
+      status: res.status,
+      latencyMs: Date.now() - started,
+      error: null,
+      missingConfig: [],
+    };
+  } catch (error) {
+    return {
+      reachable: false,
+      status: null,
+      latencyMs: Date.now() - started,
+      error: sanitizeError(error),
+      missingConfig: [],
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 
 /** First real integration slice: read-only repository forensics, no writes. */
 export const FIRST_SLICE_PROMPT = (
