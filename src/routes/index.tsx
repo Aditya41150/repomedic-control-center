@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HarnessBar } from "@/components/repomedic/HarnessBar";
+import { HarnessCapabilities } from "@/components/repomedic/HarnessCapabilities";
 import { IncidentList } from "@/components/repomedic/IncidentList";
 import { IncidentHeader } from "@/components/repomedic/IncidentHeader";
 import { AgentTimeline } from "@/components/repomedic/AgentTimeline";
@@ -141,7 +142,8 @@ function ControlRoom() {
         />
 
         <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="lg:sticky lg:top-4 lg:self-start">
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+            <HarnessCapabilities />
             <IncidentList
               incidents={queue}
               isLoading={incidents.isLoading}
