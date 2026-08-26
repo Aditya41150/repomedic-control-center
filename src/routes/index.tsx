@@ -25,6 +25,7 @@ import { EvidenceBoard } from "@/components/repomedic/EvidenceBoard";
 import { LiveApprovalPanel } from "@/components/repomedic/LiveApprovalPanel";
 import { getRepoMedicClient } from "@/lib/repomedic/client";
 import { useInvestigationRun } from "@/lib/repomedic/investigation-run";
+import { isBusyPhase } from "@/lib/repomedic/types";
 import {
   CONVERGED_FINDING,
   DEMO_INCIDENT_ID,
@@ -69,9 +70,9 @@ function ControlRoom() {
     () => ({
       ...demoIncident,
       status:
-        run.state.phase === "approved"
+        run.state.phase === "completed"
           ? ("patch_open" as const)
-          : run.state.phase === "awaiting_approval"
+          : run.state.phase === "waiting_for_approval"
             ? ("awaiting_approval" as const)
             : ("investigating" as const),
     }),
@@ -150,7 +151,7 @@ function ControlRoom() {
               isLoading={incidents.isLoading}
               selectedId={selectedId}
               onSelect={(id) => {
-                if (state.phase === "running" || state.phase === "creating_pr") {
+                if (isBusyPhase(state.phase)) {
                   toast.message("An investigation is running — wait for the approval gate.");
                   return;
                 }
@@ -191,9 +192,9 @@ function ControlRoom() {
                   </div>
                 )}
 
-                {(state.phase === "awaiting_approval" ||
+                {(state.phase === "waiting_for_approval" ||
                   state.phase === "creating_pr" ||
-                  state.phase === "approved" ||
+                  state.phase === "completed" ||
                   state.phase === "rejected") &&
                   state.patch && (
                     <LiveApprovalPanel

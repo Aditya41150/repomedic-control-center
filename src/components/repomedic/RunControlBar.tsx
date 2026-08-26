@@ -2,24 +2,34 @@ import { Loader2, Play, RotateCcw, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "./StatusPill";
 import { demoFacts } from "@/lib/repomedic/demo-script";
-import type { RunPhase } from "@/lib/repomedic/types";
+import { isBusyPhase, type RunPhase } from "@/lib/repomedic/types";
 
 const phaseLabel: Record<RunPhase, string> = {
   idle: "investigation ready",
-  running: "agent working",
-  awaiting_approval: "awaiting human approval",
+  investigating: "repository forensics",
+  analyzing: "analysing telemetry",
+  subagents_running: "subagents investigating",
+  sandbox_running: "sandbox reproduction",
+  patch_generating: "generating patch",
+  verifying: "verifying patch",
+  waiting_for_approval: "awaiting human approval",
   creating_pr: "creating pull request",
-  approved: "pull request opened",
+  completed: "pull request opened",
   rejected: "rejected by human",
   error: "run failed",
 };
 
 const phaseTone: Record<RunPhase, "muted" | "primary" | "caution" | "signal" | "critical"> = {
   idle: "muted",
-  running: "primary",
-  awaiting_approval: "caution",
+  investigating: "primary",
+  analyzing: "primary",
+  subagents_running: "primary",
+  sandbox_running: "primary",
+  patch_generating: "primary",
+  verifying: "primary",
+  waiting_for_approval: "caution",
   creating_pr: "primary",
-  approved: "signal",
+  completed: "signal",
   rejected: "critical",
   error: "critical",
 };
@@ -33,7 +43,7 @@ export function RunControlBar({
   onStart: () => void;
   onReset: () => void;
 }) {
-  const busy = phase === "running" || phase === "creating_pr";
+  const busy = isBusyPhase(phase);
   const started = phase !== "idle";
 
   return (

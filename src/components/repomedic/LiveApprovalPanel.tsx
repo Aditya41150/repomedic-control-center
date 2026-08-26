@@ -51,7 +51,7 @@ export function LiveApprovalPanel({
   const [why, setWhy] = useState(false);
   const [submitting, setSubmitting] = useState<"approve" | "reject" | null>(null);
 
-  const pending = phase === "awaiting_approval";
+  const pending = phase === "waiting_for_approval";
   const busy = phase === "creating_pr";
   const locked = busy || submitting !== null;
 
@@ -65,7 +65,7 @@ export function LiveApprovalPanel({
   const accent =
     phase === "rejected"
       ? "border-critical/50"
-      : phase === "approved"
+      : phase === "completed"
         ? "border-signal/50"
         : "border-caution/55";
 
@@ -98,7 +98,7 @@ export function LiveApprovalPanel({
         </div>
       )}
 
-      {phase === "approved" && (
+      {phase === "completed" && (
         <div className="flex flex-wrap items-center gap-3 border-b border-signal/35 bg-signal/10 px-5 py-3">
           <ShieldCheck className="h-5 w-5 text-signal" aria-hidden />
           <h2 id="approval-heading" className="text-base font-semibold tracking-tight">
@@ -267,7 +267,7 @@ export function LiveApprovalPanel({
         )}
 
         {/* ---- Approved result ---- */}
-        {phase === "approved" && pullRequest && (
+        {phase === "completed" && pullRequest && (
           <div className="step-enter mt-5 rounded-md border border-signal/35 bg-signal/8 px-4 py-4">
             <div className="flex flex-wrap items-center gap-3">
               <GitPullRequest className="check-pop h-5 w-5 text-signal" aria-hidden />
