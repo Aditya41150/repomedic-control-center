@@ -62,6 +62,9 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "mcp_tool",
+    toolLabel: "GitHub MCP",
+    action: "Inspect recent deployment, commits and pull requests",
   },
   {
     id: "step_telemetry",
@@ -74,6 +77,9 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "analysis",
+    toolLabel: "Metrics & Logs",
+    action: "Analyze checkout latency and database counters",
   },
   {
     id: "step_subagents",
@@ -86,6 +92,9 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "subagent",
+    toolLabel: "Subagent Orchestrator",
+    action: "Dispatch three parallel investigators",
   },
   {
     id: "step_sandbox",
@@ -97,6 +106,9 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "sandbox",
+    toolLabel: "Sandbox",
+    action: "Reproduce production failure",
   },
   {
     id: "step_rootcause",
@@ -108,6 +120,9 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "analysis",
+    toolLabel: "Root Cause Analyzer",
+    action: "Converge findings into a root cause",
   },
   {
     id: "step_patch",
@@ -120,6 +135,9 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "analysis",
+    toolLabel: "Patch Author",
+    action: "Generate a minimal batched-query fix",
   },
   {
     id: "step_verify",
@@ -131,6 +149,9 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "verification",
+    toolLabel: "Verification Runner",
+    action: "Run unit, integration and performance suites",
   },
   {
     id: "step_approval",
@@ -143,6 +164,9 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "human_approval",
+    toolLabel: "Human Approval",
+    action: "Pause for explicit human decision",
   },
   {
     id: "step_pr",
@@ -154,8 +178,23 @@ export const stepBlueprints: TimelineStep[] = [
     startedAt: now(),
     durationMs: 0,
     toolCalls: [],
+    category: "mcp_tool",
+    toolLabel: "GitHub MCP",
+    action: "Create pull request with evidence bundle",
   },
 ];
+
+export const stepResultPreview: Record<string, string> = {
+  step_github: "Found deployment #4812 → commit 81ac2 · 2 files changed",
+  step_telemetry: "p95 increased 0.8s → 3.2s · DB queries 4 → 101 per checkout",
+  step_subagents: "3/3 subagents converged · N+1 query in checkout/order_service.py",
+  step_sandbox: "FAILURE REPRODUCED · 101 DB queries · p95 2.91s",
+  step_rootcause: "Root cause confirmed at 94% confidence · commit 81ac2",
+  step_patch: "Batched customer lookup · checkout/order_service.py (+14 / -9)",
+  step_verify: "32/32 unit · 12/12 integration · p95 2.91s → 0.84s",
+  step_approval: "Waiting for a human to approve pull-request creation",
+  step_pr: "PR #1842 opened · checks passing",
+};
 
 export const stepToolCalls: Record<string, TimelineStep["toolCalls"]> = {
   step_github: [

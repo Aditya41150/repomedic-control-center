@@ -84,6 +84,9 @@ const steps: TimelineStep[] = [
   {
     id: "step_1",
     kind: "investigation",
+    category: "mcp_tool",
+    toolLabel: "GitHub MCP",
+    action: "GitHub / MCP repository investigation",
     title: "GitHub / MCP repository investigation",
     detail:
       "Enumerated deploys in the incident window, diffed 9f3ac21 against the last healthy revision and pulled ownership metadata for the touched modules.",
@@ -124,6 +127,9 @@ const steps: TimelineStep[] = [
   {
     id: "step_2",
     kind: "telemetry",
+    category: "analysis",
+    toolLabel: "Metrics & Logs",
+    action: "Metrics and log correlation",
     title: "Metrics and log correlation",
     detail:
       "Correlated 5xx spike with deploy marker, then clustered 4,812 error logs into three signatures. One signature accounts for 94% of failures.",
@@ -155,6 +161,9 @@ const steps: TimelineStep[] = [
   {
     id: "step_3",
     kind: "sandbox",
+    category: "sandbox",
+    toolLabel: "Sandbox",
+    action: "Sandbox reproduction",
     title: "Sandbox reproduction",
     detail:
       "Spun an ephemeral sandbox at 9f3ac21, replayed three anonymised failing carts and reproduced the crash deterministically on stacked percentage coupons.",
@@ -186,6 +195,9 @@ const steps: TimelineStep[] = [
   {
     id: "step_4",
     kind: "subagent",
+    category: "subagent",
+    toolLabel: "Subagents",
+    action: "Subagent findings merged",
     title: "Subagent findings merged",
     detail:
       "Pricing, telemetry and sandbox subagents converged on a single root cause. Two competing hypotheses were ruled out with counter-evidence.",
@@ -208,6 +220,9 @@ const steps: TimelineStep[] = [
   {
     id: "step_5",
     kind: "verification",
+    category: "verification",
+    toolLabel: "Verification Runner",
+    action: "Patch generation and verification",
     title: "Patch generation and verification",
     detail:
       "Authored a guarded discount-ceiling fallback plus a regression test, then re-ran the full pricing and checkout suites in the sandbox.",
@@ -239,6 +254,9 @@ const steps: TimelineStep[] = [
   {
     id: "step_6",
     kind: "approval",
+    category: "human_approval",
+    toolLabel: "Human Approval",
+    action: "Human approval gate",
     title: "Human approval gate",
     detail:
       "RepoMedic will not open a pull request without an explicit human decision. Review the hypothesis, diff and verification output before approving.",
@@ -251,6 +269,9 @@ const steps: TimelineStep[] = [
   {
     id: "step_7",
     kind: "pull_request",
+    category: "mcp_tool",
+    toolLabel: "GitHub MCP",
+    action: "Pull request creation",
     title: "Pull request creation",
     detail: "Opens a PR against main with the verified patch, evidence bundle and sandbox logs attached.",
     state: "pending",
