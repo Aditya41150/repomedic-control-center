@@ -57,6 +57,8 @@ const entry = (input: AuditInput): AuditEntry => ({
 
 export function useInvestigationRun() {
   const [state, setState] = useState<RunState>(initialRunState);
+  /** Mirrors state.phase so guards can read it synchronously. */
+  const phaseRef = useRef<RunState["phase"]>("idle");
   const runToken = useRef(0);
   const running = useRef(false);
   /** True once the human has approved or rejected — blocks any second decision. */
@@ -80,7 +82,11 @@ export function useInvestigationRun() {
       });
     const update = (fn: (prev: RunState) => RunState) => {
       if (!alive()) return;
-      setState(fn);
+      setState((prev) => {
+        const next = fn(prev);
+        phaseRef.current = next.phase;
+        return next;
+      });
     };
     const patchStep = (id: string, patch: Partial<TimelineStep>) =>
       update((prev) => ({
@@ -177,6 +183,7 @@ export function useInvestigationRun() {
         },
       });
 
+      update((prev) => ({ ...prev, phase: "analyzing" }));
       /* STEP 2 — Metrics + logs */
       if (!(await runStep("step_telemetry"))) return;
       if (!(await finishStep("step_telemetry", 11_200))) return;
@@ -200,6 +207,7 @@ export function useInvestigationRun() {
         details: { subagents: "Application, Database, Deployment" },
       });
 
+      update((prev) => ({ ...prev, phase: "subagents_running" }));
       /* STEP 3 — Parallel subagents */
       await wait(pace.stepStart);
       if (!alive()) return;
@@ -251,6 +259,7 @@ export function useInvestigationRun() {
         details: { tool: "sandbox.execute", command: "python reproduce_checkout.py", sandbox: "sbx-9a12" },
       });
 
+      update((prev) => ({ ...prev, phase: "sandbox_running" }));
       /* STEP 4 — Sandbox reproduction */
       if (!(await runStep("step_sandbox"))) return;
       update((prev) => ({
@@ -278,6 +287,7 @@ export function useInvestigationRun() {
         },
       });
 
+      update((prev) => ({ ...prev, phase: "analyzing" }));
       /* STEP 5 — Root cause */
       if (!(await runStep("step_rootcause"))) return;
       update((prev) => ({ ...prev, hypothesis: clone(demoHypothesis) }));
@@ -289,6 +299,7 @@ export function useInvestigationRun() {
         details: { commit: "81ac2", confidence: "94%", service: "checkout-service" },
       });
 
+      update((prev) => ({ ...prev, phase: "patch_generating" }));
       /* STEP 6 — Patch generation */
       if (!(await runStep("step_patch"))) return;
       update((prev) => ({ ...prev, patch: clone(demoPatch) }));
@@ -304,6 +315,7 @@ export function useInvestigationRun() {
         },
       });
 
+      update((prev) => ({ ...prev, phase: "verifying" }));
       /* STEP 7 — Patch verification */
       if (!(await runStep("step_verify"))) return;
       for (const run of verificationRuns) {
@@ -358,7 +370,8 @@ export function useInvestigationRun() {
   const approve = useCallback(async (note?: string) => {
     // Safety: the external action can be authorised exactly once, and only
     // from the paused approval gate.
-    if (decided.current) return;
+    // Only the paused approval gate can authorise the external action.
+    if (decided.current || phaseRef.current !== "waiting_for_approval") return;
     decided.current = true;
 
     const token = ++runToken.current;
