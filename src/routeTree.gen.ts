@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiRepomedicHealthRouteImport } from './routes/api/repomedic/health'
 import { Route as ApiRepomedicRunRouteImport } from './routes/api/repomedic/run'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRepomedicHealthRoute = ApiRepomedicHealthRouteImport.update({
+  id: '/api/repomedic/health',
+  path: '/api/repomedic/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRepomedicRunRoute = ApiRepomedicRunRouteImport.update({
@@ -25,27 +31,31 @@ const ApiRepomedicRunRoute = ApiRepomedicRunRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/repomedic/health': typeof ApiRepomedicHealthRoute
   '/api/repomedic/run': typeof ApiRepomedicRunRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/repomedic/health': typeof ApiRepomedicHealthRoute
   '/api/repomedic/run': typeof ApiRepomedicRunRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/repomedic/health': typeof ApiRepomedicHealthRoute
   '/api/repomedic/run': typeof ApiRepomedicRunRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/repomedic/run'
+  fullPaths: '/' | '/api/repomedic/health' | '/api/repomedic/run'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/repomedic/run'
-  id: '__root__' | '/' | '/api/repomedic/run'
+  to: '/' | '/api/repomedic/health' | '/api/repomedic/run'
+  id: '__root__' | '/' | '/api/repomedic/health' | '/api/repomedic/run'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiRepomedicHealthRoute: typeof ApiRepomedicHealthRoute
   ApiRepomedicRunRoute: typeof ApiRepomedicRunRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/repomedic/health': {
+      id: '/api/repomedic/health'
+      path: '/api/repomedic/health'
+      fullPath: '/api/repomedic/health'
+      preLoaderRoute: typeof ApiRepomedicHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/repomedic/run': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiRepomedicHealthRoute: ApiRepomedicHealthRoute,
   ApiRepomedicRunRoute: ApiRepomedicRunRoute,
 }
 export const routeTree = rootRouteImport
